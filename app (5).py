@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -12,18 +11,18 @@ import openpyxl
 # PALETA Y THEMING (tonos banca: azul marino / azul / gris)
 # =============================================================================
 
-COLOR_NAVY = "#0F172A"          # Header, títulos
-COLOR_BASE = "#3B82F6"          # Escenario Base
-COLOR_ACCENT = "#6366F1"        # Acentos interactivos
-COLOR_ADVERSO = "#EF4444"       # Escenario Adverso
-COLOR_OPTIMISTA = "#10B981"     # Escenario Optimista
-COLOR_WARNING = "#F59E0B"       # Estados marginales
-COLOR_NEUTRAL = "#64748B"       # Series neutras (ponderado, normal teórica)
-COLOR_BG = "#F8FAFC"            # Fondo de página
-COLOR_BORDER = "#E2E8F0"        # Bordes de tarjetas/tablas
-COLOR_TEXT = "#334155"          # Texto principal
-COLOR_TEXT_MUTED = "#94A3B8"    # Texto secundario
-COLOR_TINT = "#EEF2FF"          # Fondo tenue de acento
+COLOR_NAVY = "#0B2545"          # Header, títulos
+COLOR_BASE = "#1B4B8F"          # Escenario Base
+COLOR_ACCENT = "#2E6FBA"        # Acentos interactivos
+COLOR_ADVERSO = "#C0392B"       # Escenario Adverso
+COLOR_OPTIMISTA = "#2E7D5B"     # Escenario Optimista
+COLOR_WARNING = "#C9862B"       # Estados marginales
+COLOR_NEUTRAL = "#5F6B7A"       # Series neutras (ponderado, normal teórica)
+COLOR_BG = "#F5F6F8"            # Fondo de página
+COLOR_BORDER = "#E3E6EA"        # Bordes de tarjetas/tablas
+COLOR_TEXT = "#1F2937"          # Texto principal
+COLOR_TEXT_MUTED = "#6B7280"    # Texto secundario
+COLOR_TINT = "#EAF1FB"          # Fondo tenue de acento
 
 _BADGE_PALETTE = {
     "success": ("#EAF6EF", "#1E5C41"),
@@ -137,16 +136,6 @@ def inject_theme_css():
         padding-top: 1rem;
         padding-bottom: 2rem;
     }}
-    /* Sticky nav para botones anterior/siguiente */
-    div[data-testid="stHorizontalBlock"]:has(button[key="btn_prev"]) {{
-        position: sticky;
-        top: 3.5rem;
-        z-index: 999;
-        background-color: rgba(248, 250, 252, 0.95);
-        padding: 10px 0;
-        border-bottom: 1px solid #E2E8F0;
-        backdrop-filter: blur(4px);
-    }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -205,6 +194,75 @@ def section_divider():
 
 
 # =============================================================================
+# NAV FIJO (FLECHAS) — BARRA FLOTANTE ABAJO-DERECHA (CSS puro, sin JS)
+# =============================================================================
+# La versión anterior intentaba alinear el nav con el ancho exacto del panel
+# de contenido usando JS que medía coordenadas en un polling cada 150ms.
+# Eso causaba parpadeo al cargar, desalineces ocasionales y anchos raros
+# mientras el script "encontraba" dónde fijarse.
+#
+# Enfoque más simple y robusto: en vez de seguir el ancho de la columna,
+# el nav flota como una pill fija en la esquina inferior derecha de la
+# ventana. No necesita medir nada ni saber el ancho de ninguna columna,
+# así que no hay parpadeo, no hay polling y no se desalinea nunca.
+
+_STICKY_NAV_KEY = "sarimax_sticky_nav"
+
+
+def render_nav_fijo(modelo_actual, current_idx, total, disabled_prev, disabled_next):
+    """
+    Renderiza las flechas de navegación como una barra flotante (pill) fija
+    en la esquina inferior derecha, mediante CSS puro (sin medición JS).
+    Devuelve (prev_clicked, next_clicked).
+    """
+    st.markdown(f"""
+    <style>
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(> div > div.st-key-{_STICKY_NAV_KEY}),
+    .st-key-{_STICKY_NAV_KEY} {{
+        position: fixed !important;
+        bottom: 22px;
+        right: 22px;
+        z-index: 999999;
+        background: #ffffff;
+        border: 1px solid {COLOR_BORDER};
+        border-radius: 999px;
+        box-shadow: 0 6px 20px rgba(11, 37, 69, 0.18);
+        padding: 8px 18px;
+        max-width: min(90vw, 420px);
+    }}
+    .st-key-{_STICKY_NAV_KEY} div[data-testid="stHorizontalBlock"] {{
+        align-items: center;
+        gap: 4px;
+    }}
+    .st-key-{_STICKY_NAV_KEY} p {{
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin: 0 !important;
+        font-size: 13px;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
+    nav = st.container(key=_STICKY_NAV_KEY)
+    with nav:
+        cols_nav = st.columns([1, 1, 3])
+        with cols_nav[0]:
+            prev_clicked = st.button(
+                "←", disabled=disabled_prev, key="btn_prev",
+                use_container_width=True, help="Modelo anterior"
+            )
+        with cols_nav[1]:
+            next_clicked = st.button(
+                "→", disabled=disabled_next, key="btn_next",
+                use_container_width=True, help="Siguiente modelo"
+            )
+        with cols_nav[2]:
+            st.markdown(f"**{modelo_actual}** ({current_idx + 1}/{total})")
+
+    return prev_clicked, next_clicked
+
+# =============================================================================
 # CONFIGURACIÓN INICIAL DE SESSION STATE
 # =============================================================================
 
@@ -261,6 +319,80 @@ def clasificar_variable(var_name):
         return 'Varianza'
     else:
         return 'Otro'
+
+
+# --- Mapas de presentación para metadata (país / cartera / pruebas) ---
+# Estos SOLO afectan lo que se muestra en pantalla; la detección de
+# significancia y demás lógica sigue usando las claves crudas ('arch',
+# 'hetero', 'vivi', 'cons', etc.) tal como llegan del Excel.
+
+_BANDERAS_PAIS = {
+    'colombia': '🇨🇴',
+    'panama': '🇵🇦',
+    'panamá': '🇵🇦',
+    'costa rica': '🇨🇷',
+    'costarica': '🇨🇷',
+}
+
+_CARTERAS_DISPLAY = {
+    'vivi': 'Vivienda',
+    'vivienda': 'Vivienda',
+    'cons': 'Consumo',
+    'consumo': 'Consumo',
+    'tc': 'Tarjeta de crédito',
+    'tdc': 'Tarjeta de crédito',
+    'tarjeta': 'Tarjeta de crédito',
+    'tarjeta credito': 'Tarjeta de crédito',
+    'tarjeta de credito': 'Tarjeta de crédito',
+    'veh': 'Vehículo',
+    'vehi': 'Vehículo',
+    'vehicular': 'Vehículo',
+    'vehiculo': 'Vehículo',
+    'coml': 'Comercial',
+    'com': 'Comercial',
+    'comercial': 'Comercial',
+}
+
+_PRUEBAS_DISPLAY = {
+    'ljung': 'Ljung-Box (autocorrelación)',
+    'box': 'Ljung-Box (autocorrelación)',
+    'jarque': 'Jarque-Bera (normalidad)',
+    'bera': 'Jarque-Bera (normalidad)',
+    'hetero': 'Heterocedasticidad (ARCH)',
+    'arch': 'Heterocedasticidad (ARCH)',
+}
+
+
+def bandera_pais(pais):
+    """Devuelve el emoji de bandera para un país (o '' si no se reconoce)."""
+    if not pais:
+        return ''
+    return _BANDERAS_PAIS.get(str(pais).strip().lower(), '')
+
+
+def nombre_pais_amigable(pais_raw):
+    """Antepone la bandera al nombre del país tal como viene en la metadata."""
+    if not pais_raw or str(pais_raw) == 'N/A':
+        return pais_raw
+    bandera = bandera_pais(pais_raw)
+    return f"{bandera} {pais_raw}".strip() if bandera else str(pais_raw)
+
+
+def nombre_cartera_amigable(cartera_raw):
+    """Traduce abreviaturas de cartera ('VIVI', 'CONS', ...) a nombre legible."""
+    if not cartera_raw or str(cartera_raw) == 'N/A':
+        return cartera_raw
+    key = str(cartera_raw).strip().lower()
+    return _CARTERAS_DISPLAY.get(key, str(cartera_raw))
+
+
+def nombre_prueba_amigable(prueba_raw):
+    """Traduce el nombre crudo de una prueba estadística a un rótulo legible."""
+    p = str(prueba_raw).lower()
+    for clave, etiqueta in _PRUEBAS_DISPLAY.items():
+        if clave in p:
+            return etiqueta
+    return str(prueba_raw)
 
 
 def leer_meta_embebida(file, prefix="sarimax_meta"):
@@ -586,32 +718,9 @@ with col_left:
         meta = st.session_state.meta_contexto
         if meta:
             with st.expander("📋 Contexto de la corrida", expanded=True):
-                # Mapeo de países
-                pais_raw = str(meta.get('pais', '')).lower().strip()
-                paises_map = {
-                    'colombia': '🇨🇴 Colombia',
-                    'panama': '🇵🇦 Panamá',
-                    'panamá': '🇵🇦 Panamá',
-                    'costa rica': '🇨🇷 Costa Rica',
-                }
-                pais_limpio = paises_map.get(pais_raw, meta.get('pais', 'N/A'))
-
-                # Mapeo de carteras
-                cartera_raw = str(meta.get('cartera', '')).lower().strip()
-                carteras_map = {
-                    'vivi': 'Vivienda',
-                    'vivienda': 'Vivienda',
-                    'cons': 'Consumo',
-                    'consumo': 'Consumo',
-                    'com': 'Comercial',
-                    'comercial': 'Comercial',
-                    'micro': 'Microcrédito',
-                }
-                cartera_limpia = carteras_map.get(cartera_raw, meta.get('cartera', 'N/A'))
-
                 st.markdown(
-                    f"{badge(pais_limpio, 'neutral')} "
-                    f"{badge(cartera_limpia, 'neutral')} "
+                    f"{badge(nombre_pais_amigable(meta.get('pais', 'N/A')), 'neutral')} "
+                    f"{badge(nombre_cartera_amigable(meta.get('cartera', 'N/A')), 'neutral')} "
                     f"{badge('Endógena · ' + str(meta.get('motor_tipo_endogena', 'N/A')), 'neutral')}",
                     unsafe_allow_html=True
                 )
@@ -731,6 +840,15 @@ with col_left:
                 </div>
                 """, unsafe_allow_html=True)
 
+        section_divider()
+
+        # --- SWITCH FLECHAS STICKY ---
+        st.session_state.flechas_sticky = st.toggle(
+            "Anclar flechas al scroll",
+            value=st.session_state.get("flechas_sticky", False),
+            help="Las flechas de navegación se quedan fijas al desplazarte por el contenido."
+        )
+
 # =========================================================================
 # PANEL DERECHO
 # =========================================================================
@@ -769,21 +887,32 @@ with col_right:
         disabled_prev = current_idx == 0
         disabled_next = current_idx == len(modelos_list) - 1
 
-        cols_nav = st.columns([1, 1, 8, 2])
-        with cols_nav[0]:
-            prev_clicked = st.button(
-                "← Anterior", disabled=disabled_prev, key="btn_prev",
-                use_container_width=True
+        # Si sticky está activado, usar render_nav_fijo (con JS)
+        # Si no, renderizar flechas normales
+        if st.session_state.get("flechas_sticky", False):
+            prev_clicked, next_clicked = render_nav_fijo(
+                st.session_state.modelo_seleccionado,
+                current_idx,
+                len(modelos_list),
+                disabled_prev,
+                disabled_next,
             )
-        with cols_nav[1]:
-            next_clicked = st.button(
-                "Siguiente →", disabled=disabled_next, key="btn_next",
-                use_container_width=True
-            )
-        with cols_nav[2]:
-            st.markdown(f"**{st.session_state.modelo_seleccionado}** ({current_idx + 1}/{len(modelos_list)})")
-        with cols_nav[3]:
-            pass
+        else:
+            cols_nav = st.columns([1, 1, 8, 2])
+            with cols_nav[0]:
+                prev_clicked = st.button(
+                    "← Anterior", disabled=disabled_prev, key="btn_prev",
+                    use_container_width=True
+                )
+            with cols_nav[1]:
+                next_clicked = st.button(
+                    "Siguiente →", disabled=disabled_next, key="btn_next",
+                    use_container_width=True
+                )
+            with cols_nav[2]:
+                st.markdown(f"**{st.session_state.modelo_seleccionado}** ({current_idx + 1}/{len(modelos_list)})")
+            with cols_nav[3]:
+                pass
 
         if prev_clicked:
             st.session_state.modelo_seleccionado = modelos_list[current_idx - 1]
@@ -1245,10 +1374,8 @@ with col_right:
                     else:
                         return "Pasa" if p_val > 0.05 else "Falla"
 
-                # Corrección dinámica del nombre de la prueba
-                df_test['Prueba'] = df_test['Prueba'].apply(lambda x: 'Heterocedasticidad' if 'arch' in str(x).lower() else x)
-
                 df_test['Significancia'] = df_test.apply(evaluar_significancia, axis=1)
+                df_test['Prueba'] = df_test['Prueba'].apply(nombre_prueba_amigable)
 
                 def _color_significancia(val):
                     if val == "Pasa":
