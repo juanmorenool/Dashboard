@@ -35,6 +35,19 @@ PAISES_MAP = {
     'costa rica': 'Costa Rica',
 }
 
+BANDERAS_MAP = {
+    'Colombia': '🇨🇴',
+    'Panamá': '🇵🇦',
+    'Costa Rica': '🇨🇷',
+}
+
+def obtener_bandera(pais):
+    """Devuelve el emoji de bandera correspondiente al pais (normalizado via PAISES_MAP)."""
+    if not pais or pais in ('—', 'N/A'):
+        return ''
+    pais_norm = PAISES_MAP.get(str(pais).lower().strip(), pais)
+    return BANDERAS_MAP.get(pais_norm, '')
+
 CARTERAS_MAP = {
     'vivi': 'Vivienda', 'vivienda': 'Vivienda',
     'cons': 'Consumo', 'consumo': 'Consumo',
@@ -86,7 +99,16 @@ def inject_css():
     /* Sidebar sticky */
     section[data-testid="stSidebar"] {{ position: sticky; top: 0; height: 100vh; overflow-y: auto; }}
 
-    /* Bottom nav */
+    /* Barra de navegacion entre modelos: sticky, siempre visible al hacer scroll,
+       sin taparse encima del contenido (no usa position:fixed) */
+    div[class*="st-key-nav_sticky_bar"] {{
+        position: sticky; top: 0; z-index: 999;
+        background: {WHITE}; padding: 8px 4px 4px;
+        border-bottom: 1px solid {BORDER};
+        margin-bottom: 10px;
+    }}
+
+    /* Bottom nav (legacy, no usado) */
     .bottom-bar {{
         position: fixed; bottom: 0; left: 260px; right: 0;
         background: {WHITE}; border-top: 1px solid {BORDER};
@@ -521,11 +543,13 @@ def fig_histograma_residuos(vals, media, std):
 
 def fig_barras_coeficientes(df_coef):
     df = df_coef.copy()
+    df['Coeficiente'] = pd.to_numeric(df['Coeficiente'], errors='coerce')
+    df = df.dropna(subset=['Coeficiente'])
     df['abs'] = df['Coeficiente'].abs()
     df = df.sort_values('abs', ascending=True)
     colors = [GREEN if c >= 0 else RED for c in df['Coeficiente']]
     fig = go.Figure()
-    fig.add_trace(go.Bar(y=df['Lag'], x=df['Coeficiente'], orientation='h', marker_color=colors,
+    fig.add_trace(go.Bar(y=df['Variable'], x=df['Coeficiente'], orientation='h', marker_color=colors,
                           text=df['Coeficiente'].round(4), textposition='outside'))
     fig.update_layout(title="Coeficientes del Modelo", xaxis_title="Valor", yaxis_title="Variable", showlegend=False)
     return aplicar_tema_plotly(fig)
@@ -709,7 +733,10 @@ with col_left:
             # Tarjetas metadata en grid 2x3, sin texto cortado
             c1, c2 = st.columns(2)
             with c1:
-                st.markdown(card_kpi("Pais", meta_kpis.get('pais', '—')), unsafe_allow_html=True)
+                pais_side = meta_kpis.get('pais', '—')
+                bandera_side = obtener_bandera(pais_side)
+                valor_pais = f"{bandera_side} {pais_side}" if bandera_side else pais_side
+                st.markdown(card_kpi("Pais", valor_pais), unsafe_allow_html=True)
             with c2:
                 st.markdown(card_kpi("Ventana media movil", meta_kpis.get('ventana_mm', '—')), unsafe_allow_html=True)
 
@@ -790,6 +817,8 @@ with col_right:
         # --- Header ejecutivo ---
         pais = meta_kpis.get('pais', '—')
         cartera = meta_kpis.get('cartera', '—')
+        bandera = obtener_bandera(pais)
+        pais_txt = f"{bandera} {pais}" if bandera else pais
         st.markdown(f"""
         <div style="display:flex;align-items:flex-end;gap:16px;margin-bottom:4px;">
             <div style="flex:1;">
@@ -797,7 +826,7 @@ with col_right:
                 <p style="font-size:20px;font-weight:700;color:{NAVY};margin:4px 0 0;">{st.session_state.modelo_seleccionado}</p>
             </div>
             <div style="text-align:right;">
-                <p style="font-size:11px;color:{MUTED};margin:0;">{pais} · {cartera}</p>
+                <p style="font-size:11px;color:{MUTED};margin:0;">{pais_txt} · {cartera}</p>
                 <p style="font-size:11px;color:{LTGRAY};margin:2px 0 0;">{len(st.session_state.modelos_data)} modelos cargados</p>
             </div>
         </div>
@@ -810,6 +839,26 @@ with col_right:
             key=lambda x: (-x[1], x[0]) if st.session_state.criterio_ordenamiento == "Pruebas aprobadas ↓" else (x[0] if st.session_state.criterio_ordenamiento == "Nombre (A-Z)" else (x[1], x[0]))
         )]
         current_idx = modelos_list.index(st.session_state.modelo_seleccionado)
+
+        # --- Barra de navegacion "sticky": queda fija al hacer scroll pero no
+        # se monta encima del contenido (a diferencia de position:fixed) ---
+        with st.container(key="nav_sticky_bar"):
+            nav_cols = st.columns([1, 3, 1])
+            with nav_cols[0]:
+                if st.button("← Anterior", disabled=current_idx == 0, key="btn_prev_top", use_container_width=True):
+                    st.session_state.modelo_seleccionado = modelos_list[current_idx - 1]
+                    st.rerun()
+            with nav_cols[1]:
+                st.markdown(f"""
+                <div style="text-align:center;padding:4px 0;">
+                    <p style="font-size:10px;color:{MUTED};margin:0;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Modelo {current_idx + 1} de {len(modelos_list)}</p>
+                    <p style="font-size:13px;color:{NAVY};font-weight:700;margin:2px 0 0;">{st.session_state.modelo_seleccionado}</p>
+                </div>
+                """, unsafe_allow_html=True)
+            with nav_cols[2]:
+                if st.button("Siguiente →", disabled=current_idx == len(modelos_list) - 1, key="btn_next_top", use_container_width=True):
+                    st.session_state.modelo_seleccionado = modelos_list[current_idx + 1]
+                    st.rerun()
 
         tab1, tab2, tab3 = st.tabs(["Visualizacion", "Predicciones", "Diagnosticos"])
 
@@ -1018,22 +1067,3 @@ with col_right:
                 st.dataframe(styler, use_container_width=True, hide_index=True)
             else:
                 st.info("No hay datos de coeficientes.")
-
-        # --- Bottom nav bar (flechas funcionan via session state) ---
-        st.markdown("<div style='height:50px;'></div>", unsafe_allow_html=True)
-        nav_cols = st.columns([1, 2, 1])
-        with nav_cols[0]:
-            if st.button("← Anterior", disabled=current_idx==0, key="btn_prev_real", use_container_width=True):
-                st.session_state.modelo_seleccionado = modelos_list[current_idx - 1]
-                st.rerun()
-        with nav_cols[1]:
-            st.markdown(f"""
-            <div style="text-align:center;padding:8px 0;">
-                <p style="font-size:11px;color:{MUTED};margin:0;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Modelo {current_idx + 1} de {len(modelos_list)}</p>
-                <p style="font-size:13px;color:{NAVY};font-weight:700;margin:2px 0 0;">{st.session_state.modelo_seleccionado}</p>
-            </div>
-            """, unsafe_allow_html=True)
-        with nav_cols[2]:
-            if st.button("Siguiente →", disabled=current_idx==len(modelos_list)-1, key="btn_next_real", use_container_width=True):
-                st.session_state.modelo_seleccionado = modelos_list[current_idx + 1]
-                st.rerun()
