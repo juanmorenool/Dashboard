@@ -35,18 +35,50 @@ PAISES_MAP = {
     'costa rica': 'Costa Rica',
 }
 
-BANDERAS_MAP = {
-    'Colombia': '🇨🇴',
-    'Panamá': '🇵🇦',
-    'Costa Rica': '🇨🇷',
+def _svg_bandera_colombia(size=16):
+    w = int(size * 1.45)
+    return f'''<svg width="{w}" height="{size}" viewBox="0 0 20 14" style="vertical-align:middle;border-radius:2px;border:1px solid {BORDER};display:inline-block;">
+        <rect width="20" height="7" y="0" fill="#FCD116"/>
+        <rect width="20" height="3.5" y="7" fill="#003087"/>
+        <rect width="20" height="3.5" y="10.5" fill="#CE1126"/>
+    </svg>'''
+
+def _svg_bandera_panama(size=16):
+    w = int(size * 1.45)
+    return f'''<svg width="{w}" height="{size}" viewBox="0 0 20 14" style="vertical-align:middle;border-radius:2px;border:1px solid {BORDER};display:inline-block;">
+        <rect width="10" height="7" x="0" y="0" fill="#FFFFFF"/>
+        <rect width="10" height="7" x="10" y="0" fill="#DA121A"/>
+        <rect width="10" height="7" x="0" y="7" fill="#0072C6"/>
+        <rect width="10" height="7" x="10" y="7" fill="#FFFFFF"/>
+        <circle cx="5" cy="3.5" r="1.3" fill="#0072C6"/>
+        <circle cx="15" cy="10.5" r="1.3" fill="#DA121A"/>
+    </svg>'''
+
+def _svg_bandera_costa_rica(size=16):
+    w = int(size * 1.45)
+    return f'''<svg width="{w}" height="{size}" viewBox="0 0 20 12" style="vertical-align:middle;border-radius:2px;border:1px solid {BORDER};display:inline-block;">
+        <rect width="20" height="2" y="0" fill="#002B7F"/>
+        <rect width="20" height="2" y="2" fill="#FFFFFF"/>
+        <rect width="20" height="4" y="4" fill="#CE1126"/>
+        <rect width="20" height="2" y="8" fill="#FFFFFF"/>
+        <rect width="20" height="2" y="10" fill="#002B7F"/>
+    </svg>'''
+
+BANDERAS_SVG = {
+    'Colombia': _svg_bandera_colombia,
+    'Panamá': _svg_bandera_panama,
+    'Costa Rica': _svg_bandera_costa_rica,
 }
 
-def obtener_bandera(pais):
-    """Devuelve el emoji de bandera correspondiente al pais (normalizado via PAISES_MAP)."""
+def obtener_bandera(pais, size=16):
+    """Devuelve un SVG inline con la bandera del pais (normalizado via PAISES_MAP).
+    Se usa SVG en vez de emoji porque muchos entornos corporativos de Windows/Chrome
+    no tienen instalados los glifos de bandera y el emoji simplemente no se pinta."""
     if not pais or pais in ('—', 'N/A'):
         return ''
     pais_norm = PAISES_MAP.get(str(pais).lower().strip(), pais)
-    return BANDERAS_MAP.get(pais_norm, '')
+    fn = BANDERAS_SVG.get(pais_norm)
+    return fn(size) if fn else ''
 
 CARTERAS_MAP = {
     'vivi': 'Vivienda', 'vivienda': 'Vivienda',
@@ -68,7 +100,8 @@ def inject_css():
     }}
     #MainMenu {{ visibility: hidden; }}
     footer {{ visibility: hidden; }}
-    header[data-testid="stHeader"] {{ background: transparent; }}
+    header[data-testid="stHeader"] {{ background: transparent; pointer-events: none; }}
+    header[data-testid="stHeader"] * {{ pointer-events: auto; }}
     .block-container {{ padding-top: 0.5rem; padding-bottom: 2rem; max-width: 1400px; }}
     .stApp {{ background-color: {BG}; }}
 
@@ -102,7 +135,7 @@ def inject_css():
     /* Barra de navegacion entre modelos: sticky, siempre visible al hacer scroll,
        sin taparse encima del contenido (no usa position:fixed) */
     div[class*="st-key-nav_sticky_bar"] {{
-        position: sticky; top: 0; z-index: 999;
+        position: sticky; top: 0.25rem; z-index: 999;
         background: {WHITE}; padding: 8px 4px 4px;
         border-bottom: 1px solid {BORDER};
         margin-bottom: 10px;
