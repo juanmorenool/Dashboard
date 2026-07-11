@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -136,14 +137,14 @@ def inject_theme_css():
         padding-top: 1rem;
         padding-bottom: 2rem;
     }}
-    /* Nav de flechas prev/next: sticky con CSS puro (sin JS) */
+    /* Sticky nav para botones anterior/siguiente */
     div[data-testid="stHorizontalBlock"]:has(button[key="btn_prev"]) {{
         position: sticky;
         top: 3.5rem;
         z-index: 999;
         background-color: rgba(248, 250, 252, 0.95);
         padding: 10px 0;
-        border-bottom: 1px solid {COLOR_BORDER};
+        border-bottom: 1px solid #E2E8F0;
         backdrop-filter: blur(4px);
     }}
     </style>
@@ -260,32 +261,6 @@ def clasificar_variable(var_name):
         return 'Varianza'
     else:
         return 'Otro'
-
-
-def mapear_pais(valor):
-    """Mapea el código crudo de país a un nombre legible con bandera."""
-    v = str(valor).strip().lower()
-    if v == 'colombia':
-        return '🇨🇴 Colombia'
-    elif v in ('panama', 'panamá'):
-        return '🇵🇦 Panamá'
-    elif v == 'costa rica':
-        return '🇨🇷 Costa Rica'
-    return str(valor)
-
-
-def mapear_cartera(valor):
-    """Mapea el código crudo de cartera a un nombre legible."""
-    v = str(valor).strip().lower()
-    if v in ('vivi', 'vivienda'):
-        return 'Vivienda'
-    elif v in ('cons', 'consumo'):
-        return 'Consumo'
-    elif v in ('com', 'comercial'):
-        return 'Comercial'
-    elif v == 'micro':
-        return 'Microcrédito'
-    return str(valor)
 
 
 def leer_meta_embebida(file, prefix="sarimax_meta"):
@@ -611,9 +586,32 @@ with col_left:
         meta = st.session_state.meta_contexto
         if meta:
             with st.expander("📋 Contexto de la corrida", expanded=True):
+                # Mapeo de países
+                pais_raw = str(meta.get('pais', '')).lower().strip()
+                paises_map = {
+                    'colombia': '🇨🇴 Colombia',
+                    'panama': '🇵🇦 Panamá',
+                    'panamá': '🇵🇦 Panamá',
+                    'costa rica': '🇨🇷 Costa Rica',
+                }
+                pais_limpio = paises_map.get(pais_raw, meta.get('pais', 'N/A'))
+
+                # Mapeo de carteras
+                cartera_raw = str(meta.get('cartera', '')).lower().strip()
+                carteras_map = {
+                    'vivi': 'Vivienda',
+                    'vivienda': 'Vivienda',
+                    'cons': 'Consumo',
+                    'consumo': 'Consumo',
+                    'com': 'Comercial',
+                    'comercial': 'Comercial',
+                    'micro': 'Microcrédito',
+                }
+                cartera_limpia = carteras_map.get(cartera_raw, meta.get('cartera', 'N/A'))
+
                 st.markdown(
-                    f"{badge(mapear_pais(meta.get('pais', 'N/A')), 'neutral')} "
-                    f"{badge(mapear_cartera(meta.get('cartera', 'N/A')), 'neutral')} "
+                    f"{badge(pais_limpio, 'neutral')} "
+                    f"{badge(cartera_limpia, 'neutral')} "
                     f"{badge('Endógena · ' + str(meta.get('motor_tipo_endogena', 'N/A')), 'neutral')}",
                     unsafe_allow_html=True
                 )
@@ -733,8 +731,6 @@ with col_left:
                 </div>
                 """, unsafe_allow_html=True)
 
-        section_divider()
-
 # =========================================================================
 # PANEL DERECHO
 # =========================================================================
@@ -773,8 +769,6 @@ with col_right:
         disabled_prev = current_idx == 0
         disabled_next = current_idx == len(modelos_list) - 1
 
-        # Nav de flechas prev/next: queda anclado (sticky) vía CSS puro
-        # (ver regla para div[data-testid="stHorizontalBlock"]:has(button[key="btn_prev"]))
         cols_nav = st.columns([1, 1, 8, 2])
         with cols_nav[0]:
             prev_clicked = st.button(
@@ -1236,11 +1230,6 @@ with col_right:
             if pruebas is not None and not pruebas.empty:
                 df_test = pruebas.copy()
 
-                # Corrección de nombre: unificar "ARCH" bajo "Heterocedasticidad"
-                df_test['Prueba'] = df_test['Prueba'].apply(
-                    lambda x: "Heterocedasticidad" if 'arch' in str(x).lower() else x
-                )
-
                 def evaluar_significancia(row):
                     prueba = str(row.get('Prueba', '')).lower()
                     p_val = row.get('P_value', None)
@@ -1255,6 +1244,9 @@ with col_right:
                         return "Falla" if p_val < 0.05 else "Pasa"
                     else:
                         return "Pasa" if p_val > 0.05 else "Falla"
+
+                # Corrección dinámica del nombre de la prueba
+                df_test['Prueba'] = df_test['Prueba'].apply(lambda x: 'Heterocedasticidad' if 'arch' in str(x).lower() else x)
 
                 df_test['Significancia'] = df_test.apply(evaluar_significancia, axis=1)
 
