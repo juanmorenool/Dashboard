@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -12,18 +11,18 @@ import openpyxl
 # PALETA Y THEMING (tonos banca: azul marino / azul / gris)
 # =============================================================================
 
-COLOR_NAVY = "#0B2545"          # Header, títulos
-COLOR_BASE = "#1B4B8F"          # Escenario Base
-COLOR_ACCENT = "#2E6FBA"        # Acentos interactivos
-COLOR_ADVERSO = "#C0392B"       # Escenario Adverso
-COLOR_OPTIMISTA = "#2E7D5B"     # Escenario Optimista
-COLOR_WARNING = "#C9862B"       # Estados marginales
-COLOR_NEUTRAL = "#5F6B7A"       # Series neutras (ponderado, normal teórica)
-COLOR_BG = "#F5F6F8"            # Fondo de página
-COLOR_BORDER = "#E3E6EA"        # Bordes de tarjetas/tablas
-COLOR_TEXT = "#1F2937"          # Texto principal
-COLOR_TEXT_MUTED = "#6B7280"    # Texto secundario
-COLOR_TINT = "#EAF1FB"          # Fondo tenue de acento
+COLOR_NAVY = "#0F172A"          # Header, títulos
+COLOR_BASE = "#3B82F6"          # Escenario Base
+COLOR_ACCENT = "#6366F1"        # Acentos interactivos
+COLOR_ADVERSO = "#EF4444"       # Escenario Adverso
+COLOR_OPTIMISTA = "#10B981"     # Escenario Optimista
+COLOR_WARNING = "#F59E0B"       # Estados marginales
+COLOR_NEUTRAL = "#64748B"       # Series neutras (ponderado, normal teórica)
+COLOR_BG = "#F8FAFC"            # Fondo de página
+COLOR_BORDER = "#E2E8F0"        # Bordes de tarjetas/tablas
+COLOR_TEXT = "#334155"          # Texto principal
+COLOR_TEXT_MUTED = "#94A3B8"    # Texto secundario
+COLOR_TINT = "#EEF2FF"          # Fondo tenue de acento
 
 _BADGE_PALETTE = {
     "success": ("#EAF6EF", "#1E5C41"),
@@ -137,6 +136,16 @@ def inject_theme_css():
         padding-top: 1rem;
         padding-bottom: 2rem;
     }}
+    /* Nav de flechas prev/next: sticky con CSS puro (sin JS) */
+    div[data-testid="stHorizontalBlock"]:has(button[key="btn_prev"]) {{
+        position: sticky;
+        top: 3.5rem;
+        z-index: 999;
+        background-color: rgba(248, 250, 252, 0.95);
+        padding: 10px 0;
+        border-bottom: 1px solid {COLOR_BORDER};
+        backdrop-filter: blur(4px);
+    }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -195,133 +204,6 @@ def section_divider():
 
 
 # =============================================================================
-# NAV FIJO (FLECHAS) QUE SÍ FUNCIONA EN STREAMLIT COMMUNITY CLOUD
-# =============================================================================
-# `position: sticky` no funciona porque los contenedores padre de Streamlit
-# tienen su propio `overflow`, que rompe el contexto de sticky.
-# `position: fixed` a secas tampoco funciona porque no sabemos de antemano
-# las coordenadas (left/width) del panel derecho: dependen del ancho del
-# sidebar, que el usuario puede colapsar.
-#
-# La solución: usamos st.container(key=...) para tener una clase CSS estable
-# (.st-key-<key>) y un pequeño script que, desde el iframe del componente,
-# accede a window.parent.document (permitido: mismo origen) para MEDIR en
-# tiempo real dónde está el panel de contenido y fijar el nav con esas
-# coordenadas exactas. También insertamos un "spacer" para que el contenido
-# no salte al volverse `fixed`.
-
-_STICKY_NAV_KEY = "sarimax_sticky_nav"
-
-
-def render_nav_fijo(modelo_actual, current_idx, total, disabled_prev, disabled_next):
-    """
-    Renderiza las flechas de navegación en un contenedor que queda
-    verdaderamente fijo (fixed) en pantalla al hacer scroll.
-    Solo los botones son visibles (sin fondo ancho).
-    Devuelve (prev_clicked, next_clicked).
-    """
-    nav = st.container(key=_STICKY_NAV_KEY)
-    with nav:
-        cols_nav = st.columns([1, 1, 8, 2])
-        with cols_nav[0]:
-            prev_clicked = st.button(
-                "← Anterior", disabled=disabled_prev, key="btn_prev",
-                use_container_width=True
-            )
-        with cols_nav[1]:
-            next_clicked = st.button(
-                "Siguiente →", disabled=disabled_next, key="btn_next",
-                use_container_width=True
-            )
-        with cols_nav[2]:
-            st.markdown(f"**{modelo_actual}** ({current_idx + 1}/{total})")
-        with cols_nav[3]:
-            pass
-
-    # Script que fija el contenedor con estilo mínimo (solo botones visibles)
-    components.html(f"""
-    <script>
-    (function() {{
-        const doc = window.parent.document;
-
-        function aplicarFijado() {{
-            const nav = doc.querySelector(".st-key-{_STICKY_NAV_KEY}");
-            if (!nav) return false;
-
-            const header = doc.querySelector('header[data-testid="stHeader"]');
-            const headerH = header ? header.offsetHeight : 0;
-
-            // Encontrar el wrapper del contenedor para hacerlo fixed
-            // El contenedor de Streamlit tiene estructura: .st-key-xxx > div > div
-            let wrapper = nav.closest('.element-container');
-            if (!wrapper) wrapper = nav.parentElement;
-
-            const yaFijado = wrapper.dataset.stickyFijado === "1";
-
-            if (!yaFijado) {{
-                // Guardar altura original para el spacer
-                const altoOriginal = nav.offsetHeight;
-                wrapper.dataset.altoOriginal = altoOriginal;
-
-                // Crear spacer antes de modificar el wrapper
-                let spacer = wrapper.previousElementSibling;
-                if (!spacer || !spacer.classList.contains('sticky-nav-spacer')) {{
-                    spacer = doc.createElement("div");
-                    spacer.className = "sticky-nav-spacer";
-                    spacer.style.height = altoOriginal + "px";
-                    wrapper.parentNode.insertBefore(spacer, wrapper);
-                }}
-            }}
-
-            // Aplicar estilo fixed al wrapper (no al nav interno)
-            wrapper.style.position = "fixed";
-            wrapper.style.top = headerH + "px";
-            wrapper.style.left = "0";
-            wrapper.style.width = "100%";
-            wrapper.style.zIndex = "999999";
-            wrapper.style.background = "transparent";
-            wrapper.style.padding = "0";
-            wrapper.style.border = "none";
-            wrapper.style.boxShadow = "none";
-            wrapper.style.boxSizing = "border-box";
-            wrapper.style.pointerEvents = "none";  /* Dejar pasar clicks al contenido debajo */
-
-            // El nav interno SÍ recibe clicks - estilo minimalista
-            nav.style.pointerEvents = "auto";
-            nav.style.background = "rgba(255, 255, 255, 0.0)";  /* TOTALMENTE transparente */
-            nav.style.backdropFilter = "none";
-            nav.style.padding = "4px 0";
-            nav.style.borderBottom = "none";
-            nav.style.maxWidth = "500px";  /* Solo el ancho de los botones */
-            nav.style.margin = "0";        /* Alinear a la izquierda */
-            nav.style.borderRadius = "0";
-
-            // Ocultar el fondo del contenedor de columnas de Streamlit
-            const colContainer = nav.querySelector('[data-testid="stHorizontalBlock"]');
-            if (colContainer) {{
-                colContainer.style.background = "transparent";
-                colContainer.style.boxShadow = "none";
-            }}
-
-            wrapper.dataset.stickyFijado = "1";
-            return true;
-        }}
-
-        let intentos = 0;
-        const timer = setInterval(function() {{
-            const ok = aplicarFijado();
-            intentos++;
-            if (intentos > 15) clearInterval(timer);
-        }}, 150);
-
-        window.addEventListener("resize", aplicarFijado);
-    }})();
-    </script>
-    """, height=0)
-
-    return prev_clicked, next_clicked
-
-# =============================================================================
 # CONFIGURACIÓN INICIAL DE SESSION STATE
 # =============================================================================
 
@@ -378,6 +260,32 @@ def clasificar_variable(var_name):
         return 'Varianza'
     else:
         return 'Otro'
+
+
+def mapear_pais(valor):
+    """Mapea el código crudo de país a un nombre legible con bandera."""
+    v = str(valor).strip().lower()
+    if v == 'colombia':
+        return '🇨🇴 Colombia'
+    elif v in ('panama', 'panamá'):
+        return '🇵🇦 Panamá'
+    elif v == 'costa rica':
+        return '🇨🇷 Costa Rica'
+    return str(valor)
+
+
+def mapear_cartera(valor):
+    """Mapea el código crudo de cartera a un nombre legible."""
+    v = str(valor).strip().lower()
+    if v in ('vivi', 'vivienda'):
+        return 'Vivienda'
+    elif v in ('cons', 'consumo'):
+        return 'Consumo'
+    elif v in ('com', 'comercial'):
+        return 'Comercial'
+    elif v == 'micro':
+        return 'Microcrédito'
+    return str(valor)
 
 
 def leer_meta_embebida(file, prefix="sarimax_meta"):
@@ -704,8 +612,8 @@ with col_left:
         if meta:
             with st.expander("📋 Contexto de la corrida", expanded=True):
                 st.markdown(
-                    f"{badge(meta.get('pais', 'N/A'), 'neutral')} "
-                    f"{badge(meta.get('cartera', 'N/A'), 'neutral')} "
+                    f"{badge(mapear_pais(meta.get('pais', 'N/A')), 'neutral')} "
+                    f"{badge(mapear_cartera(meta.get('cartera', 'N/A')), 'neutral')} "
                     f"{badge('Endógena · ' + str(meta.get('motor_tipo_endogena', 'N/A')), 'neutral')}",
                     unsafe_allow_html=True
                 )
@@ -827,13 +735,6 @@ with col_left:
 
         section_divider()
 
-        # --- SWITCH FLECHAS STICKY ---
-        st.session_state.flechas_sticky = st.toggle(
-            "Anclar flechas al scroll",
-            value=st.session_state.get("flechas_sticky", False),
-            help="Las flechas de navegación se quedan fijas al desplazarte por el contenido."
-        )
-
 # =========================================================================
 # PANEL DERECHO
 # =========================================================================
@@ -872,32 +773,23 @@ with col_right:
         disabled_prev = current_idx == 0
         disabled_next = current_idx == len(modelos_list) - 1
 
-        # Si sticky está activado, usar render_nav_fijo (con JS)
-        # Si no, renderizar flechas normales
-        if st.session_state.get("flechas_sticky", False):
-            prev_clicked, next_clicked = render_nav_fijo(
-                st.session_state.modelo_seleccionado,
-                current_idx,
-                len(modelos_list),
-                disabled_prev,
-                disabled_next,
+        # Nav de flechas prev/next: queda anclado (sticky) vía CSS puro
+        # (ver regla para div[data-testid="stHorizontalBlock"]:has(button[key="btn_prev"]))
+        cols_nav = st.columns([1, 1, 8, 2])
+        with cols_nav[0]:
+            prev_clicked = st.button(
+                "← Anterior", disabled=disabled_prev, key="btn_prev",
+                use_container_width=True
             )
-        else:
-            cols_nav = st.columns([1, 1, 8, 2])
-            with cols_nav[0]:
-                prev_clicked = st.button(
-                    "← Anterior", disabled=disabled_prev, key="btn_prev",
-                    use_container_width=True
-                )
-            with cols_nav[1]:
-                next_clicked = st.button(
-                    "Siguiente →", disabled=disabled_next, key="btn_next",
-                    use_container_width=True
-                )
-            with cols_nav[2]:
-                st.markdown(f"**{st.session_state.modelo_seleccionado}** ({current_idx + 1}/{len(modelos_list)})")
-            with cols_nav[3]:
-                pass
+        with cols_nav[1]:
+            next_clicked = st.button(
+                "Siguiente →", disabled=disabled_next, key="btn_next",
+                use_container_width=True
+            )
+        with cols_nav[2]:
+            st.markdown(f"**{st.session_state.modelo_seleccionado}** ({current_idx + 1}/{len(modelos_list)})")
+        with cols_nav[3]:
+            pass
 
         if prev_clicked:
             st.session_state.modelo_seleccionado = modelos_list[current_idx - 1]
@@ -1343,6 +1235,11 @@ with col_right:
 
             if pruebas is not None and not pruebas.empty:
                 df_test = pruebas.copy()
+
+                # Corrección de nombre: unificar "ARCH" bajo "Heterocedasticidad"
+                df_test['Prueba'] = df_test['Prueba'].apply(
+                    lambda x: "Heterocedasticidad" if 'arch' in str(x).lower() else x
+                )
 
                 def evaluar_significancia(row):
                     prueba = str(row.get('Prueba', '')).lower()
