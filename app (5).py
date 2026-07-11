@@ -7,34 +7,32 @@ import json
 import openpyxl
 
 # =============================================================================
-# PALETA CORPORATIVA v2.0
+# PALETA CORPORATIVA BANCA — Sin emojis, sin colores chillones
 # =============================================================================
-COLOR_NAVY       = "#0B2545"
-COLOR_BLUE       = "#1E5AA8"
-COLOR_GREEN      = "#2E8B57"
-COLOR_RED        = "#D9534F"
-COLOR_GRAY       = "#6C757D"
-COLOR_BG         = "#FFFFFF"
-COLOR_BG_SOFT    = "#F8F9FA"
-COLOR_BORDER     = "#E9ECEF"
-COLOR_TEXT       = "#212529"
-COLOR_TEXT_MUTED = "#6C757D"
-COLOR_TINT       = "#E8F4FD"
-COLOR_WARNING    = "#F59E0B"
+NAVY    = "#0B2545"
+BLUE    = "#1E5AA8"
+GREEN   = "#1A6B3E"
+RED     = "#B83232"
+GRAY    = "#6C757D"
+LTGRAY  = "#ADB5BD"
+BG      = "#F8F9FA"
+WHITE   = "#FFFFFF"
+BORDER  = "#DEE2E6"
+TEXT    = "#1A1D23"
+MUTED   = "#5A6270"
+TINT    = "#EDF2F7"
 
-_BADGE = {
-    "success": ("#D4EDDA", "#155724"),
-    "warning": ("#FFF3CD", "#856404"),
-    "danger":  ("#F8D7DA", "#721C24"),
-    "neutral": ("#E2E3E5", "#383D41"),
-    "info":    ("#D1ECF1", "#0C5460"),
-}
+# Estados corporativos (sin emojis)
+ESTADO_OK      = ("#E8F5E9", "#1A6B3E", "CUMPLE")
+ESTADO_WARN    = ("#FFF8E1", "#B8860B", "REVISAR")
+ESTADO_FAIL    = ("#FFEBEE", "#B83232", "NO CUMPLE")
+ESTADO_NEUTRAL = ("#F5F5F5", "#5A6270", "N/A")
 
 PAISES_MAP = {
-    'colombia': '🇨🇴 Colombia',
-    'panama': '🇵🇦 Panamá',
-    'panamá': '🇵🇦 Panamá',
-    'costa rica': '🇨🇷 Costa Rica',
+    'colombia': 'Colombia',
+    'panama': 'Panamá',
+    'panamá': 'Panamá',
+    'costa rica': 'Costa Rica',
 }
 
 CARTERAS_MAP = {
@@ -45,12 +43,12 @@ CARTERAS_MAP = {
 }
 
 # =============================================================================
-# CSS GLOBAL
+# CSS GLOBAL — Corporativo, limpio, sin emojis
 # =============================================================================
-def inject_theme_css():
+def inject_css():
     st.markdown(f"""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     html, body, [class*="css"], .stApp, .stMarkdown, .stDataFrame, .stButton,
     .stSelectbox, .stTextInput, .stNumberInput, .stTabs {{
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
@@ -58,104 +56,104 @@ def inject_theme_css():
     #MainMenu {{ visibility: hidden; }}
     footer {{ visibility: hidden; }}
     header[data-testid="stHeader"] {{ background: transparent; }}
-    .block-container {{
-        padding-top: 0.5rem; padding-bottom: 2rem; max-width: 1400px;
-    }}
-    .stApp {{ background-color: {COLOR_BG}; }}
+    .block-container {{ padding-top: 0.5rem; padding-bottom: 2rem; max-width: 1400px; }}
+    .stApp {{ background-color: {BG}; }}
+
+    /* Sidebar compacto */
     section[data-testid="stSidebar"] {{
-        background-color: #ffffff; border-right: 1px solid {COLOR_BORDER};
-        width: 280px !important;
+        background-color: {WHITE}; border-right: 1px solid {BORDER};
+        min-width: 260px !important; max-width: 260px !important;
     }}
-    section[data-testid="stSidebar"] .block-container {{
-        padding-top: 1rem; padding-bottom: 1rem;
-    }}
-    h1 {{ color: {COLOR_NAVY} !important; font-weight: 700 !important; font-size: 24px !important; }}
-    h2 {{ color: {COLOR_NAVY} !important; font-weight: 600 !important; font-size: 18px !important; margin-top: 0.3rem !important; }}
-    h3 {{ color: {COLOR_NAVY} !important; font-weight: 600 !important; font-size: 15px !important;
-         border-left: 3px solid {COLOR_BLUE}; padding-left: 10px; margin-top: 0.4rem !important; }}
-    p, span, div, label {{ color: {COLOR_TEXT}; }}
-    .stTabs [data-baseweb="tab-list"] {{ gap: 4px; border-bottom: 1px solid {COLOR_BORDER}; }}
+    section[data-testid="stSidebar"] .block-container {{ padding: 16px; }}
+
+    h1 {{ color: {NAVY} !important; font-weight: 700 !important; font-size: 22px !important; }}
+    h2 {{ color: {NAVY} !important; font-weight: 600 !important; font-size: 16px !important; margin-top: 0.2rem !important; }}
+    h3 {{ color: {NAVY} !important; font-weight: 600 !important; font-size: 14px !important;
+         border-left: 3px solid {BLUE}; padding-left: 10px; margin-top: 0.3rem !important; }}
+
+    .stTabs [data-baseweb="tab-list"] {{ gap: 2px; border-bottom: 1px solid {BORDER}; }}
     .stTabs [data-baseweb="tab"] {{
-        background-color: transparent; border-radius: 8px 8px 0 0;
-        padding: 8px 18px; color: {COLOR_TEXT_MUTED}; font-weight: 500;
+        background-color: transparent; border-radius: 6px 6px 0 0;
+        padding: 8px 16px; color: {MUTED}; font-weight: 500; font-size: 13px;
     }}
     .stTabs [aria-selected="true"] {{
-        background-color: {COLOR_TINT} !important; color: {COLOR_NAVY} !important; font-weight: 600;
+        background-color: {TINT} !important; color: {NAVY} !important; font-weight: 600;
     }}
-    div[data-testid="stMetric"] {{
-        background-color: #ffffff; border: 1px solid {COLOR_BORDER}; border-radius: 8px; padding: 12px 16px;
+
+    /* Dataframes */
+    div[data-testid="stDataFrame"] {{ border: 1px solid {BORDER}; border-radius: 6px; }}
+
+    /* Sidebar sticky */
+    section[data-testid="stSidebar"] {{ position: sticky; top: 0; height: 100vh; overflow-y: auto; }}
+
+    /* Bottom nav */
+    .bottom-bar {{
+        position: fixed; bottom: 0; left: 260px; right: 0;
+        background: {WHITE}; border-top: 1px solid {BORDER};
+        padding: 0; z-index: 9999;
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 -2px 12px rgba(0,0,0,0.04);
     }}
-    div[data-testid="stExpander"] {{
-        background-color: #ffffff; border: 1px solid {COLOR_BORDER}; border-radius: 8px;
+    .bottom-bar-inner {{
+        display: flex; align-items: center; gap: 0;
+        max-width: 600px; width: 100%;
     }}
-    div[data-testid="stVerticalBlockBorderWrapper"] {{
-        border-color: {COLOR_BORDER} !important; border-radius: 10px !important;
+    .nav-btn {{
+        background: none; border: none; color: {BLUE}; font-weight: 600; font-size: 13px;
+        padding: 14px 24px; cursor: pointer; letter-spacing: 0.3px;
+        border-right: 1px solid {BORDER}; flex: 1; text-align: center;
+        transition: background 0.15s;
     }}
-    .stButton > button {{
-        border-radius: 6px; border: 1px solid {COLOR_BORDER}; color: {COLOR_TEXT}; font-weight: 500;
+    .nav-btn:hover {{ background: {TINT}; }}
+    .nav-btn:disabled {{ color: {LTGRAY}; cursor: not-allowed; background: none; }}
+    .nav-center {{
+        padding: 10px 32px; text-align: center; flex: 2;
+        border-right: 1px solid {BORDER};
     }}
-    .stButton > button:hover {{
-        border-color: {COLOR_BLUE}; color: {COLOR_BLUE};
-    }}
-    div[data-testid="stDataFrame"] {{ border: 1px solid {COLOR_BORDER}; border-radius: 8px; }}
-    section[data-testid="stSidebar"] {{
-        position: sticky; top: 0; height: 100vh; overflow-y: auto;
-    }}
-    .bottom-nav {{
-        position: fixed; bottom: 0; left: 280px; right: 0;
-        background: rgba(255,255,255,0.97); backdrop-filter: blur(10px);
-        border-top: 1px solid {COLOR_BORDER}; padding: 12px 24px;
-        z-index: 9999; display: flex; align-items: center; justify-content: center; gap: 24px;
-        box-shadow: 0 -4px 20px rgba(0,0,0,0.04);
-    }}
-    .bottom-nav-btn {{
-        background: {COLOR_NAVY}; color: white; border: none; border-radius: 8px;
-        padding: 10px 24px; font-weight: 600; font-size: 14px; cursor: pointer;
-        transition: all 0.2s ease;
-    }}
-    .bottom-nav-btn:hover {{ background: {COLOR_BLUE}; transform: translateY(-1px); }}
-    .bottom-nav-btn:disabled {{
-        background: {COLOR_BORDER}; color: {COLOR_TEXT_MUTED}; cursor: not-allowed; transform: none;
-    }}
-    .bottom-nav-info {{ font-size: 13px; color: {COLOR_TEXT_MUTED}; font-weight: 500; text-align: center; }}
-    .bottom-nav-model {{ font-size: 15px; color: {COLOR_NAVY}; font-weight: 700; }}
+    .nav-center-top {{ font-size: 12px; color: {MUTED}; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }}
+    .nav-center-bot {{ font-size: 14px; color: {NAVY}; font-weight: 700; margin-top: 2px; }}
     </style>
     """, unsafe_allow_html=True)
 
 # =============================================================================
-# COMPONENTES VISUALES
+# COMPONENTES HTML CORPORATIVOS
 # =============================================================================
-def badge(text, kind="neutral"):
-    bg, fg = _BADGE.get(kind, _BADGE["neutral"])
-    return (f'<span style="background:{bg};color:{fg};font-size:12px;'
-            f'padding:3px 10px;border-radius:12px;font-weight:500;">{text}</span>')
+def pill(text, color_bg, color_fg):
+    return f'<span style="background:{color_bg};color:{color_fg};font-size:11px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;">{text}</span>'
 
 
-def metric_card(label, value, color=None):
-    color = color or COLOR_TEXT
+def tag_ok():    return pill("CUMPLE", ESTADO_OK[0], ESTADO_OK[1])
+def tag_warn():  return pill("REVISAR", ESTADO_WARN[0], ESTADO_WARN[1])
+def tag_fail():  return pill("NO CUMPLE", ESTADO_FAIL[0], ESTADO_FAIL[1])
+def tag_neutral(): return pill("N/A", ESTADO_NEUTRAL[0], ESTADO_NEUTRAL[1])
+
+
+def card_kpi(title, value, subtitle="", accent=NAVY):
+    sub = f'<p style="font-size:12px;color:{MUTED};margin:4px 0 0;line-height:1.3;">{subtitle}</p>' if subtitle else ''
     return f"""
-    <div style="background:#ffffff;border:1px solid {COLOR_BORDER};border-radius:8px;
-                padding:14px 16px;margin-bottom:8px;">
-        <p style="font-size:11px;color:{COLOR_TEXT_MUTED};margin:0 0 4px;text-transform:uppercase;letter-spacing:0.5px;">{label}</p>
-        <p style="font-size:20px;font-weight:600;color:{color};margin:0;">{value}</p>
-    </div>
-    """
-
-
-def kpi_card(title, value, subtitle="", color=COLOR_NAVY):
-    sub = f'<p style="font-size:12px;color:{COLOR_TEXT_MUTED};margin:4px 0 0;">{subtitle}</p>' if subtitle else ''
-    return f"""
-    <div style="background:#ffffff;border:1px solid {COLOR_BORDER};border-radius:10px;padding:16px;text-align:center;">
-        <p style="font-size:11px;color:{COLOR_TEXT_MUTED};margin:0 0 6px;text-transform:uppercase;letter-spacing:0.5px;">{title}</p>
-        <p style="font-size:22px;font-weight:700;color:{color};margin:0;">{value}</p>
+    <div style="background:{WHITE};border:1px solid {BORDER};border-radius:8px;padding:14px 16px;height:100%;box-sizing:border-box;">
+        <p style="font-size:10px;color:{LTGRAY};margin:0 0 6px;text-transform:uppercase;letter-spacing:0.6px;font-weight:600;">{title}</p>
+        <p style="font-size:18px;font-weight:700;color:{accent};margin:0;line-height:1.2;">{value}</p>
         {sub}
     </div>
     """
 
 
-def section_divider():
-    return f"<hr style='border:none;border-top:1px solid {COLOR_BORDER};margin:1.2rem 0;'>"
+def card_metric(label, value, color=TEXT):
+    return f"""
+    <div style="background:{WHITE};border:1px solid {BORDER};border-radius:6px;padding:12px 14px;">
+        <p style="font-size:10px;color:{LTGRAY};margin:0 0 4px;text-transform:uppercase;letter-spacing:0.6px;font-weight:600;">{label}</p>
+        <p style="font-size:20px;font-weight:700;color:{color};margin:0;">{value}</p>
+    </div>
+    """
 
+
+def divider():
+    return f"<div style='height:1px;background:{BORDER};margin:16px 0;'></div>"
+
+
+def section_title(text):
+    return f"<p style='font-size:13px;font-weight:700;color:{NAVY};margin:0 0 12px;text-transform:uppercase;letter-spacing:0.5px;'>{text}</p>"
 
 # =============================================================================
 # PARSER
@@ -210,7 +208,6 @@ def parsear_excel(file):
                 col_map.setdefault(name, []).append(idx)
         modelo = {"nombre": sheet_name}
 
-        # Sección 1
         exog_cols, exog_names = [], set()
         for idx, name in enumerate(headers):
             nu = name.upper()
@@ -245,7 +242,6 @@ def parsear_excel(file):
         else:
             modelo['exogenas'] = None
 
-        # Sección 2: FWL 12m
         fwl_cols = [c for c in ['FWL_BASE', 'FWL_ADVERSO', 'FWL_OPTIMISTA'] if c in col_map]
         if fwl_cols and 'fecha' in col_map:
             idx_fwl = [col_map['fecha'][0]] + [col_map[c][0] for c in fwl_cols]
@@ -258,7 +254,6 @@ def parsear_excel(file):
         else:
             modelo['fwl_12m'] = None
 
-        # Sección 3: FWL anual
         if 'Año' in col_map and 'Escenario' in col_map and 'Factor FWL' in col_map:
             idx_anual = [col_map['Año'][0], col_map['Escenario'][0], col_map['Factor FWL'][0]]
             df_anual = df_raw.iloc[2:, idx_anual].copy()
@@ -268,7 +263,6 @@ def parsear_excel(file):
         else:
             modelo['fwl_anual'] = None
 
-        # Sección 4: Residuos
         if 'Obs' in col_map and 'Residuo' in col_map:
             idx_res = [col_map['Obs'][0], col_map['Residuo'][0]]
             df_res = df_raw.iloc[2:, idx_res].copy()
@@ -278,7 +272,6 @@ def parsear_excel(file):
         else:
             modelo['residuos_ind'] = None
 
-        # Sección 5: Resumen residuos
         if 'Estadistico' in col_map and 'Valor' in col_map:
             idx_est = col_map['Estadistico'][0]
             idx_val = col_map['Valor'][0]
@@ -289,7 +282,6 @@ def parsear_excel(file):
         else:
             modelo['resumen_residuos'] = None
 
-        # Sección 6: Coeficientes
         if 'Variable' in col_map and 'Coeficiente' in col_map and 'P_value' in col_map:
             idx_var = col_map['Variable'][0]
             idx_coef = col_map['Coeficiente'][0]
@@ -301,7 +293,6 @@ def parsear_excel(file):
         else:
             modelo['coeficientes'] = None
 
-        # Sección 7: Pruebas
         if 'Prueba' in col_map and 'Estadistico' in col_map and 'P_value' in col_map:
             idx_prueba = col_map['Prueba'][0]
             idx_est = col_map['Estadistico'][-1]
@@ -330,10 +321,8 @@ def contar_pruebas_aprobadas(pruebas_df):
         p_val = row.get('P_value', None)
         if p_val is None or pd.isna(p_val):
             continue
-        try:
-            p_val = float(p_val)
-        except:
-            continue
+        try: p_val = float(p_val)
+        except: continue
         if 'ljung' in prueba or 'box' in prueba:
             if p_val > 0.05: aprobadas += 1
         elif 'jarque' in prueba or 'bera' in prueba:
@@ -376,7 +365,7 @@ def obtener_significancia_exogenas(coeficientes_df, exogenas_lista):
             try: p_val = float(p_val)
             except: p_val = None
         if p_val is None:
-            resultados.append((exog, None, "Desconocido"))
+            resultados.append((exog, None, "Sin datos"))
         elif p_val < 0.05:
             resultados.append((exog, p_val, "Significativa"))
         elif p_val < 0.10:
@@ -443,15 +432,15 @@ def extraer_kpis_meta(meta):
 # =============================================================================
 def aplicar_tema_plotly(fig):
     fig.update_layout(
-        font=dict(family="Inter, Arial, sans-serif", size=13, color=COLOR_TEXT),
+        font=dict(family="Inter, Arial, sans-serif", size=12, color=TEXT),
         plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
         legend=dict(bgcolor="rgba(0,0,0,0)"),
-        margin=dict(t=45, l=10, r=10, b=10),
+        margin=dict(t=40, l=10, r=10, b=10),
     )
-    fig.update_xaxes(showgrid=True, gridcolor=COLOR_BORDER, zeroline=False, linecolor=COLOR_BORDER)
-    fig.update_yaxes(showgrid=True, gridcolor=COLOR_BORDER, zeroline=False, linecolor=COLOR_BORDER)
+    fig.update_xaxes(showgrid=True, gridcolor=BORDER, zeroline=False, linecolor=BORDER)
+    fig.update_yaxes(showgrid=True, gridcolor=BORDER, zeroline=False, linecolor=BORDER)
     if fig.layout.title and fig.layout.title.text:
-        fig.update_layout(title=dict(font=dict(size=15, color=COLOR_NAVY)))
+        fig.update_layout(title=dict(font=dict(size=14, color=NAVY)))
     return fig
 
 
@@ -463,18 +452,18 @@ def fig_predicciones(df_end, endogena_cols, exog_df, exog_sel, modelo_nombre):
             continue
         col_str = str(col).upper()
         if col_str == 'BASE':
-            fig.add_trace(go.Scatter(x=df_end[fecha_col], y=df_end[col], mode='lines', name='Base', line=dict(color=COLOR_BLUE, width=2)))
+            fig.add_trace(go.Scatter(x=df_end[fecha_col], y=df_end[col], mode='lines', name='Base', line=dict(color=BLUE, width=2)))
         elif col_str in ['ADVERSO', 'ADVERSA']:
-            fig.add_trace(go.Scatter(x=df_end[fecha_col], y=df_end[col], mode='lines', name='Adverso', line=dict(color=COLOR_RED, width=2, dash='dash')))
+            fig.add_trace(go.Scatter(x=df_end[fecha_col], y=df_end[col], mode='lines', name='Adverso', line=dict(color=RED, width=2, dash='dash')))
         elif col_str == 'OPTIMISTA':
-            fig.add_trace(go.Scatter(x=df_end[fecha_col], y=df_end[col], mode='lines', name='Optimista', line=dict(color=COLOR_GREEN, width=2, dash='dot')))
+            fig.add_trace(go.Scatter(x=df_end[fecha_col], y=df_end[col], mode='lines', name='Optimista', line=dict(color=GREEN, width=2, dash='dot')))
     if exog_df is not None and exog_sel:
         for ex in exog_sel:
             for suffix in ['_BASE', '_ADVERSO', '_OPTIMISTA']:
                 col_name = ex + suffix
                 if col_name in exog_df.columns:
                     x_vals = exog_df[fecha_col] if fecha_col in exog_df.columns else exog_df.index
-                    fig.add_trace(go.Scatter(x=x_vals, y=exog_df[col_name], mode='lines', name=f'{ex}{suffix}', line=dict(width=1.5), yaxis='y2'))
+                    fig.add_trace(go.Scatter(x=x_vals, y=exog_df[col_name], mode='lines', name=f'{ex}{suffix}', line=dict(width=1.2), yaxis='y2'))
         fig.update_layout(yaxis2=dict(title='Exógenas', overlaying='y', side='right'))
     fig.update_layout(title=f"Predicciones — {modelo_nombre}", xaxis_title="Fecha", yaxis_title="Valor",
                       legend=dict(orientation='v', yanchor='top', y=1, xanchor='left', x=1.05), hovermode='x unified')
@@ -493,11 +482,11 @@ def fig_fwl_12m(df_fwl):
     for col in df_fwl.columns:
         col_str = str(col).upper()
         if 'FWL_BASE' in col_str:
-            fig.add_trace(go.Scatter(x=df_fwl[fecha_col], y=df_fwl[col], mode='lines', name='Base', line=dict(color=COLOR_BLUE, width=2)))
+            fig.add_trace(go.Scatter(x=df_fwl[fecha_col], y=df_fwl[col], mode='lines', name='Base', line=dict(color=BLUE, width=2)))
         elif 'FWL_ADVERSO' in col_str or 'FWL_ADVERSA' in col_str:
-            fig.add_trace(go.Scatter(x=df_fwl[fecha_col], y=df_fwl[col], mode='lines', name='Adverso', line=dict(color=COLOR_RED, width=2, dash='dash')))
+            fig.add_trace(go.Scatter(x=df_fwl[fecha_col], y=df_fwl[col], mode='lines', name='Adverso', line=dict(color=RED, width=2, dash='dash')))
         elif 'FWL_OPTIMISTA' in col_str:
-            fig.add_trace(go.Scatter(x=df_fwl[fecha_col], y=df_fwl[col], mode='lines', name='Optimista', line=dict(color=COLOR_GREEN, width=2, dash='dot')))
+            fig.add_trace(go.Scatter(x=df_fwl[fecha_col], y=df_fwl[col], mode='lines', name='Optimista', line=dict(color=GREEN, width=2, dash='dot')))
     fig.update_layout(title="Factor FWL a 12 Meses", xaxis_title="Fecha", yaxis_title="FWL",
                       legend=dict(orientation='v', yanchor='top', y=1, xanchor='left', x=1.05), hovermode='x unified')
     return aplicar_tema_plotly(fig)
@@ -513,19 +502,19 @@ def fig_fwl_ponderado(df_pond):
         fecha_col = df_pond.columns[0]
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=df_pond[fecha_col], y=df_pond['FWL_Ponderado'], mode='lines', name='FWL Ponderado',
-                              fill='tozeroy', line=dict(color=COLOR_BLUE, width=2), fillcolor='rgba(30,90,168,0.12)'))
+                              fill='tozeroy', line=dict(color=BLUE, width=2), fillcolor='rgba(30,90,168,0.10)'))
     fig.update_layout(title="Factor FWL Ponderado", xaxis_title="Fecha", yaxis_title="FWL Ponderado")
     return aplicar_tema_plotly(fig)
 
 
 def fig_histograma_residuos(vals, media, std):
     fig = go.Figure()
-    fig.add_trace(go.Histogram(x=vals, nbinsx=20, marker_color=COLOR_BLUE, opacity=0.75, name='Residuos'))
+    fig.add_trace(go.Histogram(x=vals, nbinsx=20, marker_color=BLUE, opacity=0.7, name='Residuos'))
     x_norm, y_norm = generar_campana_normal(vals, media, std)
     if len(x_norm) > 0:
         bin_width = (vals.max() - vals.min()) / 20 if vals.max() != vals.min() else 1
         y_norm_scaled = y_norm * len(vals) * bin_width
-        fig.add_trace(go.Scatter(x=x_norm, y=y_norm_scaled, mode='lines', name='Normal teórica', line=dict(color=COLOR_RED, width=2)))
+        fig.add_trace(go.Scatter(x=x_norm, y=y_norm_scaled, mode='lines', name='Normal teórica', line=dict(color=RED, width=2)))
     fig.update_layout(xaxis_title="Residuos", yaxis_title="Frecuencia")
     return aplicar_tema_plotly(fig)
 
@@ -534,7 +523,7 @@ def fig_barras_coeficientes(df_coef):
     df = df_coef.copy()
     df['abs'] = df['Coeficiente'].abs()
     df = df.sort_values('abs', ascending=True)
-    colors = [COLOR_GREEN if c >= 0 else COLOR_RED for c in df['Coeficiente']]
+    colors = [GREEN if c >= 0 else RED for c in df['Coeficiente']]
     fig = go.Figure()
     fig.add_trace(go.Bar(y=df['Lag'], x=df['Coeficiente'], orientation='h', marker_color=colors,
                           text=df['Coeficiente'].round(4), textposition='outside'))
@@ -543,75 +532,94 @@ def fig_barras_coeficientes(df_coef):
 
 
 # =============================================================================
-# DIAGNÓSTICOS
+# DIAGNOSTICOS — Corporativo, sin emojis, sin expanders
 # =============================================================================
-def evaluar_prueba(prueba, p_val):
-    if pd.isna(p_val):
-        return "N/A", "neutral"
-    try:
-        p_val = float(p_val)
-    except:
-        return "N/A", "neutral"
-    prueba_lower = str(prueba).lower()
-    if 'jarque' in prueba_lower or 'bera' in prueba_lower:
-        if p_val < 0.05: return "No cumple", "danger"
-        elif p_val < 0.10: return "Revisar", "warning"
-        else: return "Correcto", "success"
-    if p_val > 0.05: return "Correcto", "success"
-    elif p_val > 0.01: return "Revisar", "warning"
-    else: return "No cumple", "danger"
-
-
 def limpiar_nombre_prueba(nombre):
-    nombre_lower = str(nombre).lower()
-    if 'arch' in nombre_lower: return "Heterocedasticidad"
-    if 'ljung' in nombre_lower or 'box' in nombre_lower: return "Ljung-Box"
-    if 'jarque' in nombre_lower or 'bera' in nombre_lower: return "Jarque-Bera"
+    nl = str(nombre).lower()
+    if 'arch' in nl: return "Heterocedasticidad"
+    if 'ljung' in nl or 'box' in nl: return "Ljung-Box"
+    if 'jarque' in nl or 'bera' in nl: return "Jarque-Bera"
     return str(nombre)
 
 
-def render_diagnosticos_ejecutivo(pruebas_df):
+def evaluar_prueba(prueba, p_val):
+    if pd.isna(p_val):
+        return "N/A", ESTADO_NEUTRAL
+    try: p_val = float(p_val)
+    except: return "N/A", ESTADO_NEUTRAL
+    pl = str(prueba).lower()
+    if 'jarque' in pl or 'bera' in pl:
+        if p_val < 0.05: return "NO CUMPLE", ESTADO_FAIL
+        elif p_val < 0.10: return "REVISAR", ESTADO_WARN
+        else: return "CUMPLE", ESTADO_OK
+    if p_val > 0.05: return "CUMPLE", ESTADO_OK
+    elif p_val > 0.01: return "REVISAR", ESTADO_WARN
+    else: return "NO CUMPLE", ESTADO_FAIL
+
+
+def render_diagnosticos_corporativo(pruebas_df):
+    """Tabla ejecutiva + detalle técnico en la misma vista, sin expanders."""
     if pruebas_df is None or pruebas_df.empty:
         st.info("No hay datos de pruebas estadísticas.")
         return
+
     df = pruebas_df.copy()
     df['Prueba'] = df['Prueba'].apply(limpiar_nombre_prueba)
-    resultados = []
+
+    # --- RESUMEN EJECUTIVO: tarjetas horizontales ---
+    st.markdown(section_title("Resumen de Diagnósticos"), unsafe_allow_html=True)
+    filas = []
     for _, row in df.iterrows():
         prueba = row['Prueba']
         p_val = row['P_value']
-        estado, tipo = evaluar_prueba(prueba, p_val)
-        resultados.append({
-            'Diagnóstico': prueba, 'Estado': estado, 'tipo': tipo,
-            'P-valor': p_val, 'Estadístico': row.get('Estadistico', '—'),
+        estado, (bg, fg, label) = evaluar_prueba(prueba, p_val)
+        filas.append({
+            'Diagnóstico': prueba,
+            'Estado': label,
+            'Color': fg,
+            'Bg': bg,
+            'P-valor': p_val,
+            'Estadístico': row.get('Estadistico', '—'),
         })
-    df_res = pd.DataFrame(resultados)
-    st.markdown("#### Resumen Ejecutivo")
-    cols = st.columns(len(df_res))
-    for i, (_, row) in enumerate(df_res.iterrows()):
+
+    cols = st.columns(len(filas))
+    for i, f in enumerate(filas):
         with cols[i]:
-            color = COLOR_GREEN if row['tipo'] == 'success' else (COLOR_RED if row['tipo'] == 'danger' else COLOR_WARNING)
-            emoji = "🟢" if row['tipo'] == 'success' else ("🔴" if row['tipo'] == 'danger' else "🟡")
             st.markdown(f"""
-            <div style="background:#ffffff;border:1px solid {COLOR_BORDER};border-radius:10px;padding:18px;text-align:center;">
-                <p style="font-size:28px;margin:0 0 8px;">{emoji}</p>
-                <p style="font-size:13px;font-weight:600;color:{COLOR_NAVY};margin:0;">{row['Diagnóstico']}</p>
-                <p style="font-size:12px;color:{color};font-weight:600;margin:6px 0 0;">{row['Estado']}</p>
+            <div style="background:{f['Bg']};border:1px solid {BORDER};border-radius:6px;padding:16px;text-align:center;">
+                <p style="font-size:10px;color:{LTGRAY};margin:0 0 6px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">{f['Diagnóstico']}</p>
+                <p style="font-size:16px;font-weight:700;color:{f['Color']};margin:0;">{f['Estado']}</p>
             </div>
             """, unsafe_allow_html=True)
-    with st.expander("🔍 Ver detalle técnico"):
-        df_display = df_res[['Diagnóstico', 'Estadístico', 'P-valor', 'Estado']].copy()
-        def color_estado(val):
-            if val == "Correcto": return f"color: {COLOR_GREEN}; font-weight: 600;"
-            elif val == "No cumple": return f"color: {COLOR_RED}; font-weight: 600;"
-            elif val == "Revisar": return f"color: {COLOR_WARNING}; font-weight: 600;"
-            return ""
-        styler = df_display.style
-        if hasattr(styler, "map"):
-            styler = styler.map(color_estado, subset=['Estado'])
-        else:
-            styler = styler.applymap(color_estado, subset=['Estado'])
-        st.dataframe(styler, use_container_width=True, hide_index=True)
+
+    st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+
+    # --- DETALLE TÉCNICO: tabla limpia, visible siempre ---
+    st.markdown(section_title("Detalle Técnico"), unsafe_allow_html=True)
+    df_tec = pd.DataFrame(filas)[['Diagnóstico', 'Estadístico', 'P-valor', 'Estado']]
+
+    def fmt_p(v):
+        try:
+            if pd.isna(v): return "—"
+            vf = float(v)
+            return f"{vf:.4f}" if vf >= 0.001 else f"{vf:.2e}"
+        except: return str(v)
+
+    df_tec['P-valor'] = df_tec['P-valor'].apply(fmt_p)
+    df_tec['Estadístico'] = df_tec['Estadístico'].apply(fmt_p)
+
+    def color_estado(val):
+        if val == "CUMPLE": return f"color: {GREEN}; font-weight: 700;"
+        elif val == "NO CUMPLE": return f"color: {RED}; font-weight: 700;"
+        elif val == "REVISAR": return f"color: #B8860B; font-weight: 700;"
+        return ""
+
+    styler = df_tec.style
+    if hasattr(styler, "map"):
+        styler = styler.map(color_estado, subset=['Estado'])
+    else:
+        styler = styler.applymap(color_estado, subset=['Estado'])
+    st.dataframe(styler, use_container_width=True, hide_index=True)
 
 
 def render_metricas_diagnostico(pruebas_df):
@@ -621,88 +629,26 @@ def render_metricas_diagnostico(pruebas_df):
     for _, row in pruebas_df.iterrows():
         prueba = str(row.get('Prueba', '')).lower()
         p_val = row.get('P_value', None)
-        if pd.isna(p_val):
-            continue
+        if pd.isna(p_val): continue
         try: p_val = float(p_val)
         except: continue
         if 'ljung' in prueba or 'box' in prueba: lb_p = p_val
         elif 'jarque' in prueba or 'bera' in prueba: jb_p = p_val
         elif 'hetero' in prueba or 'arch' in prueba: het_p = p_val
+
     c1, c2, c3 = st.columns(3)
     with c1:
-        val = f"{lb_p:.4f}" if lb_p is not None else "N/A"
-        color = COLOR_GREEN if lb_p is not None and lb_p > 0.05 else COLOR_RED
-        st.markdown(metric_card("Ljung-Box P-valor", val, color), unsafe_allow_html=True)
+        val = f"{lb_p:.4f}" if lb_p is not None else "—"
+        color = GREEN if lb_p is not None and lb_p > 0.05 else RED
+        st.markdown(card_metric("Ljung-Box (p-valor)", val, color), unsafe_allow_html=True)
     with c2:
-        val = f"{jb_p:.4f}" if jb_p is not None else "N/A"
-        color = COLOR_RED if jb_p is not None and jb_p < 0.05 else COLOR_GREEN
-        st.markdown(metric_card("Jarque-Bera P-valor", val, color), unsafe_allow_html=True)
+        val = f"{jb_p:.4f}" if jb_p is not None else "—"
+        color = RED if jb_p is not None and jb_p < 0.05 else GREEN
+        st.markdown(card_metric("Jarque-Bera (p-valor)", val, color), unsafe_allow_html=True)
     with c3:
-        val = f"{het_p:.4f}" if het_p is not None else "N/A"
-        color = COLOR_GREEN if het_p is not None and het_p > 0.05 else COLOR_RED
-        st.markdown(metric_card("Heterocedasticidad P-valor", val, color), unsafe_allow_html=True)
-
-
-# =============================================================================
-# CARDS / UI COMPONENTS
-# =============================================================================
-def render_header_ejecutivo(modelo_nombre, meta_kpis, n_modelos, fecha_gen="—"):
-    pais = meta_kpis.get('pais', '—')
-    cartera = meta_kpis.get('cartera', '—')
-    cols = st.columns([3, 1, 1, 1, 1])
-    with cols[0]:
-        st.markdown(f"""
-        <div style="display:flex;align-items:center;gap:12px;">
-            <div>
-                <p style="font-size:11px;color:{COLOR_TEXT_MUTED};margin:0;text-transform:uppercase;letter-spacing:0.5px;">Modelo seleccionado</p>
-                <p style="font-size:22px;font-weight:700;color:{COLOR_NAVY};margin:0;">{modelo_nombre}</p>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    with cols[1]: st.markdown(kpi_card("País", pais, color=COLOR_NAVY), unsafe_allow_html=True)
-    with cols[2]: st.markdown(kpi_card("Cartera", cartera, color=COLOR_BLUE), unsafe_allow_html=True)
-    with cols[3]: st.markdown(kpi_card("Modelos", str(n_modelos), color=COLOR_GREEN), unsafe_allow_html=True)
-    with cols[4]: st.markdown(kpi_card("Generado", fecha_gen, color=COLOR_GRAY), unsafe_allow_html=True)
-    st.markdown(f"<div style='border-bottom:2px solid {COLOR_BORDER};margin:12px 0;'></div>", unsafe_allow_html=True)
-
-
-def render_chips_exogenas(exogenas, seleccionadas, key_prefix):
-    cols = st.columns(min(len(exogenas), 6))
-    for i, ex in enumerate(exogenas):
-        with cols[i % len(cols)]:
-            activo = ex in seleccionadas
-            bg = COLOR_BLUE if activo else COLOR_BG_SOFT
-            fg = "#ffffff" if activo else COLOR_TEXT
-            border = "none" if activo else f"1px solid {COLOR_BORDER}"
-            if st.button(f"{'✓ ' if activo else ''}{ex}", key=f"{key_prefix}_chip_{ex}", use_container_width=True):
-                if activo:
-                    seleccionadas.remove(ex)
-                else:
-                    seleccionadas.append(ex)
-                st.rerun()
-
-
-def render_tarjetas_meta(meta_kpis):
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown(metric_card("País", meta_kpis.get('pais', '—'), COLOR_NAVY), unsafe_allow_html=True)
-        st.markdown(metric_card("Cartera", meta_kpis.get('cartera', '—'), COLOR_BLUE), unsafe_allow_html=True)
-        st.markdown(metric_card("Modo endógena", meta_kpis.get('modo_endogena', '—'), COLOR_GRAY), unsafe_allow_html=True)
-    with c2:
-        st.markdown(metric_card("Ventana MM", meta_kpis.get('ventana_mm', '—'), COLOR_GRAY), unsafe_allow_html=True)
-        fwl_range = f"{meta_kpis.get('fwl_min', '?')} – {meta_kpis.get('fwl_max', '?')}"
-        st.markdown(metric_card("Rango FWL", fwl_range, COLOR_GREEN), unsafe_allow_html=True)
-        st.markdown(metric_card("Top exportados", meta_kpis.get('top_exportar', '—'), COLOR_GRAY), unsafe_allow_html=True)
-
-
-def render_kpis_fwl(resumen):
-    if not resumen:
-        return
-    c1, c2, c3, c4 = st.columns(4)
-    with c1: st.markdown(metric_card("Promedio", f"{resumen.get('promedio', 0):.4f}", COLOR_BLUE), unsafe_allow_html=True)
-    with c2: st.markdown(metric_card("Máximo", f"{resumen.get('maximo', 0):.4f}", COLOR_GREEN), unsafe_allow_html=True)
-    with c3: st.markdown(metric_card("Mínimo", f"{resumen.get('minimo', 0):.4f}", COLOR_RED), unsafe_allow_html=True)
-    with c4: st.markdown(metric_card("Volatilidad (σ)", f"{resumen.get('volatilidad', 0):.4f}", COLOR_GRAY), unsafe_allow_html=True)
+        val = f"{het_p:.4f}" if het_p is not None else "—"
+        color = GREEN if het_p is not None and het_p > 0.05 else RED
+        st.markdown(card_metric("Heterocedasticidad (p-valor)", val, color), unsafe_allow_html=True)
 
 
 # =============================================================================
@@ -717,10 +663,10 @@ for key, default in [
         st.session_state[key] = default
 
 # =============================================================================
-# APP PRINCIPAL
+# APP
 # =============================================================================
-st.set_page_config(page_title="Dashboard SARIMAX v2.0", layout="wide")
-inject_theme_css()
+st.set_page_config(page_title="Dashboard SARIMAX", layout="wide")
+inject_css()
 
 col_left, col_right = st.columns([1, 4])
 
@@ -728,7 +674,7 @@ col_left, col_right = st.columns([1, 4])
 # SIDEBAR
 # =========================================================================
 with col_left:
-    st.markdown(f"<p style='font-size:13px;font-weight:700;color:{COLOR_NAVY};margin:0 0 10px;'>📂 Cargar modelo</p>", unsafe_allow_html=True)
+    st.markdown(f"<p style='font-size:12px;font-weight:700;color:{NAVY};margin:0 0 10px;letter-spacing:0.5px;'>CARGAR MODELO</p>", unsafe_allow_html=True)
 
     uploaded = st.file_uploader("Archivo Excel (.xlsx)", type=["xlsx"], label_visibility="collapsed")
     if uploaded is not None:
@@ -738,28 +684,51 @@ with col_left:
                 st.session_state.modelos_data = parsear_excel(uploaded)
                 st.session_state.meta_contexto = leer_meta_embebida(uploaded)
                 st.session_state.last_file_name = uploaded.name
-            st.success(f"✅ {uploaded.name} ({uploaded.size/1024:.1f} KB)")
+            st.success(f"Archivo cargado: {uploaded.name}")
             if st.session_state.modelo_seleccionado is None or st.session_state.modelo_seleccionado not in st.session_state.modelos_data:
                 st.session_state.modelo_seleccionado = list(st.session_state.modelos_data.keys())[0]
 
     if st.session_state.uploaded_file is not None:
-        if st.button("🗑️ Eliminar", key="btn_eliminar", use_container_width=True):
-            for k in ["uploaded_file", "modelos_data", "meta_contexto", "modelo_seleccionado", "last_file_name"]:
-                st.session_state[k] = None if k not in ["modelos_data", "exog_sel"] else ({}, {})
+        if st.button("Eliminar archivo", key="btn_eliminar", use_container_width=True):
+            st.session_state.uploaded_file = None
+            st.session_state.modelos_data = {}
+            st.session_state.meta_contexto = None
+            st.session_state.modelo_seleccionado = None
+            st.session_state.last_file_name = None
+            st.session_state.exog_sel = {}
             st.rerun()
 
     if st.session_state.modelos_data:
-        st.markdown(section_divider(), unsafe_allow_html=True)
+        st.markdown(divider(), unsafe_allow_html=True)
 
         meta = st.session_state.meta_contexto
         if meta:
             meta_kpis = extraer_kpis_meta(meta)
-            st.markdown(f"<p style='font-size:12px;font-weight:600;color:{COLOR_NAVY};margin:0 0 8px;'>📋 Contexto</p>", unsafe_allow_html=True)
-            render_tarjetas_meta(meta_kpis)
+            st.markdown(section_title("Contexto de la corrida"), unsafe_allow_html=True)
+
+            # Tarjetas metadata en grid 2x3, sin texto cortado
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown(card_kpi("Pais", meta_kpis.get('pais', '—')), unsafe_allow_html=True)
+            with c2:
+                st.markdown(card_kpi("Ventana media movil", meta_kpis.get('ventana_mm', '—')), unsafe_allow_html=True)
+
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown(card_kpi("Cartera", meta_kpis.get('cartera', '—'), accent=BLUE), unsafe_allow_html=True)
+            with c2:
+                fwl_range = f"{meta_kpis.get('fwl_min', '?')} – {meta_kpis.get('fwl_max', '?')}"
+                st.markdown(card_kpi("Rango FWL", fwl_range, accent=GREEN), unsafe_allow_html=True)
+
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown(card_kpi("Modo endogena", meta_kpis.get('modo_endogena', '—')), unsafe_allow_html=True)
+            with c2:
+                st.markdown(card_kpi("Top exportados", meta_kpis.get('top_exportar', '—')), unsafe_allow_html=True)
         else:
             st.caption("Sin metadata embebida.")
 
-        st.markdown(section_divider(), unsafe_allow_html=True)
+        st.markdown(divider(), unsafe_allow_html=True)
 
         criterio = st.radio("Ordenar por:", ["Nombre (A-Z)", "Pruebas aprobadas ↓", "Pruebas aprobadas ↑"],
                             index=1, key="criterio_orden")
@@ -780,28 +749,28 @@ with col_left:
         modelos_list = [m[0] for m in modelos_con_pruebas]
         pruebas_dict = {m[0]: (m[1], m[2]) for m in modelos_con_pruebas}
 
-        opciones = [f"{m}  ({pruebas_dict[m][0]}/{pruebas_dict[m][1]} ✅)" for m in modelos_list]
+        opciones = [f"{m}  ({pruebas_dict[m][0]}/{pruebas_dict[m][1]})" for m in modelos_list]
         idx = modelos_list.index(st.session_state.modelo_seleccionado) if st.session_state.modelo_seleccionado in modelos_list else 0
         seleccion = st.selectbox("Modelo", opciones, index=idx, key="sel_modelo")
         st.session_state.modelo_seleccionado = seleccion.split("  (")[0]
 
         datos = st.session_state.modelos_data.get(st.session_state.modelo_seleccionado, {})
-        st.markdown(f"<p style='font-size:12px;font-weight:600;color:{COLOR_NAVY};margin:12px 0 4px;'>Modelo actual</p>", unsafe_allow_html=True)
-        st.markdown(f"<p style='font-size:15px;font-weight:600;color:{COLOR_NAVY};margin:0;'>{st.session_state.modelo_seleccionado}</p>", unsafe_allow_html=True)
-        st.markdown(f"<p style='font-size:12px;color:{COLOR_TEXT_MUTED};margin:4px 0 0;'>{datos.get('observaciones', 0)} observaciones</p>", unsafe_allow_html=True)
+        st.markdown(f"<p style='font-size:11px;font-weight:600;color:{NAVY};margin:12px 0 4px;'>MODELO ACTUAL</p>", unsafe_allow_html=True)
+        st.markdown(f"<p style='font-size:14px;font-weight:700;color:{NAVY};margin:0;'>{st.session_state.modelo_seleccionado}</p>", unsafe_allow_html=True)
+        st.markdown(f"<p style='font-size:11px;color:{MUTED};margin:4px 0 0;'>{datos.get('observaciones', 0)} observaciones</p>", unsafe_allow_html=True)
 
         exogenas = datos.get('exogenas_nombres', [])
         if exogenas:
-            st.markdown(f"<p style='font-size:12px;font-weight:600;color:{COLOR_NAVY};margin:12px 0 8px;'>📊 Exógenas</p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='font-size:11px;font-weight:600;color:{NAVY};margin:12px 0 6px;'>EXOGENAS</p>", unsafe_allow_html=True)
             coefs = datos.get('coeficientes')
             sigs = obtener_significancia_exogenas(coefs, exogenas)
             sig_count = sum(1 for _, _, s in sigs if s == "Significativa")
-            st.markdown(f"<p style='font-size:11px;color:{COLOR_TEXT_MUTED};margin:0 0 8px;'>{sig_count}/{len(exogenas)} significativas</p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='font-size:10px;color:{MUTED};margin:0 0 6px;'>{sig_count} de {len(exogenas)} significativas</p>", unsafe_allow_html=True)
             for ex, pval, status in sigs:
-                color = COLOR_GREEN if status == "Significativa" else (COLOR_RED if status == "No significativa" else COLOR_WARNING)
-                label = "Sig." if status == "Significativa" else ("No sig." if status == "No significativa" else "Marg.")
+                color = GREEN if status == "Significativa" else (RED if status == "No significativa" else "#B8860B")
+                label = "SIG" if status == "Significativa" else ("NO SIG" if status == "No significativa" else "MARG")
                 p_txt = f"p={pval:.3f}" if pval is not None else "p=N/A"
-                st.markdown(f'<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:12px;"><span>{ex}</span><span style="color:{color};font-weight:500;">{label} ({p_txt})</span></div>', unsafe_allow_html=True)
+                st.markdown(f'<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;font-size:11px;"><span style="color:{TEXT}">{ex}</span><span style="color:{color};font-weight:600;">{label} ({p_txt})</span></div>', unsafe_allow_html=True)
 
 # =========================================================================
 # PANEL PRINCIPAL
@@ -809,9 +778,9 @@ with col_left:
 with col_right:
     if not st.session_state.modelos_data:
         st.markdown(f"""
-        <div style="background:#ffffff;border:1px solid {COLOR_BORDER};border-radius:12px;padding:60px 32px;text-align:center;margin-top:40px;">
-            <p style="font-size:20px;font-weight:600;color:{COLOR_NAVY};margin:0 0 8px;">Bienvenido al Dashboard SARIMAX v2.0</p>
-            <p style="font-size:14px;color:{COLOR_TEXT_MUTED};margin:0;">Sube un archivo Excel en el panel izquierdo para comenzar.</p>
+        <div style="background:{WHITE};border:1px solid {BORDER};border-radius:10px;padding:60px 32px;text-align:center;margin-top:40px;">
+            <p style="font-size:18px;font-weight:700;color:{NAVY};margin:0 0 8px;">Dashboard SARIMAX</p>
+            <p style="font-size:13px;color:{MUTED};margin:0;">Suba un archivo Excel para comenzar el analisis.</p>
         </div>
         """, unsafe_allow_html=True)
     else:
@@ -819,49 +788,55 @@ with col_right:
         meta_kpis = extraer_kpis_meta(st.session_state.meta_contexto)
 
         # --- Header ejecutivo ---
-        render_header_ejecutivo(
-            st.session_state.modelo_seleccionado,
-            meta_kpis,
-            len(st.session_state.modelos_data),
-            fecha_gen="—"
-        )
+        pais = meta_kpis.get('pais', '—')
+        cartera = meta_kpis.get('cartera', '—')
+        st.markdown(f"""
+        <div style="display:flex;align-items:flex-end;gap:16px;margin-bottom:4px;">
+            <div style="flex:1;">
+                <p style="font-size:11px;color:{MUTED};margin:0;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Modelo seleccionado</p>
+                <p style="font-size:20px;font-weight:700;color:{NAVY};margin:4px 0 0;">{st.session_state.modelo_seleccionado}</p>
+            </div>
+            <div style="text-align:right;">
+                <p style="font-size:11px;color:{MUTED};margin:0;">{pais} · {cartera}</p>
+                <p style="font-size:11px;color:{LTGRAY};margin:2px 0 0;">{len(st.session_state.modelos_data)} modelos cargados</p>
+            </div>
+        </div>
+        <div style="height:1px;background:{BORDER};margin:12px 0 16px;"></div>
+        """, unsafe_allow_html=True)
 
-        # --- Navegación (botones ocultos) ---
+        # --- Navegacion (botones reales, no JS) ---
         modelos_list = [m[0] for m in sorted(
             [(n, contar_pruebas_aprobadas(d.get('pruebas'))[0]) for n, d in st.session_state.modelos_data.items()],
             key=lambda x: (-x[1], x[0]) if st.session_state.criterio_ordenamiento == "Pruebas aprobadas ↓" else (x[0] if st.session_state.criterio_ordenamiento == "Nombre (A-Z)" else (x[1], x[0]))
         )]
         current_idx = modelos_list.index(st.session_state.modelo_seleccionado)
 
-        # Botones reales (ocultos visualmente pero funcionales)
-        c_prev, c_next = st.columns(2)
-        with c_prev:
-            if st.button("←", disabled=current_idx==0, key="btn_prev", use_container_width=True):
-                st.session_state.modelo_seleccionado = modelos_list[current_idx - 1]
-                st.rerun()
-        with c_next:
-            if st.button("→", disabled=current_idx==len(modelos_list)-1, key="btn_next", use_container_width=True):
-                st.session_state.modelo_seleccionado = modelos_list[current_idx + 1]
-                st.rerun()
-
-        # --- Tabs ---
-        tab1, tab2, tab3 = st.tabs(["📈 Visualización", "🔮 Predicciones", "🩺 Diagnósticos"])
+        tab1, tab2, tab3 = st.tabs(["Visualizacion", "Predicciones", "Diagnosticos"])
 
         # =====================================================================
-        # TAB 1: VISUALIZACIÓN
+        # TAB 1: VISUALIZACION
         # =====================================================================
         with tab1:
-            st.markdown("#### Exógenas activas")
+            st.markdown(section_title("Exogenas activas"), unsafe_allow_html=True)
             exogenas = datos.get('exogenas_nombres', [])
             modelo_key = st.session_state.modelo_seleccionado
             if modelo_key not in st.session_state.exog_sel:
                 st.session_state.exog_sel[modelo_key] = []
             if exogenas:
-                render_chips_exogenas(exogenas, st.session_state.exog_sel[modelo_key], modelo_key)
+                n_cols = min(len(exogenas), 6)
+                chip_cols = st.columns(n_cols)
+                for i, ex in enumerate(exogenas):
+                    with chip_cols[i % n_cols]:
+                        activo = ex in st.session_state.exog_sel[modelo_key]
+                        label = f"[x] {ex}" if activo else f"[ ] {ex}"
+                        if st.button(label, key=f"chip_{modelo_key}_{ex}", use_container_width=True):
+                            if activo:
+                                st.session_state.exog_sel[modelo_key].remove(ex)
+                            else:
+                                st.session_state.exog_sel[modelo_key].append(ex)
+                            st.rerun()
             else:
-                st.caption("Sin exógenas en este modelo.")
-
-            st.markdown("<div style='margin-top:16px;'></div>", unsafe_allow_html=True)
+                st.caption("Sin exogenas en este modelo.")
 
             df_end = datos.get('fecha_endogena')
             endogena_cols = datos.get('endogenas_cols', [])
@@ -871,9 +846,9 @@ with col_right:
             else:
                 st.info("No hay datos de predicciones.")
 
-            st.markdown(section_divider(), unsafe_allow_html=True)
+            st.markdown(divider(), unsafe_allow_html=True)
 
-            st.markdown("#### Factor FWL por año y escenario")
+            st.markdown(section_title("Factor FWL por ano y escenario"), unsafe_allow_html=True)
             df_fwl_anual = datos.get('fwl_anual')
             if df_fwl_anual is not None and not df_fwl_anual.empty:
                 try:
@@ -889,20 +864,20 @@ with col_right:
                 except:
                     st.dataframe(df_fwl_anual, use_container_width=True, hide_index=True)
             else:
-                st.info("No hay datos de Factor FWL por Año.")
+                st.info("No hay datos de Factor FWL por Ano.")
 
-            st.markdown(section_divider(), unsafe_allow_html=True)
+            st.markdown(divider(), unsafe_allow_html=True)
 
-            st.markdown("#### Factor FWL a 12 meses")
+            st.markdown(section_title("Factor FWL a 12 meses"), unsafe_allow_html=True)
             df_fwl = datos.get('fwl_12m')
             if df_fwl is not None and not df_fwl.empty:
                 st.plotly_chart(fig_fwl_12m(df_fwl), use_container_width=True)
             else:
                 st.info("No hay datos de FWL a 12 meses.")
 
-            st.markdown(section_divider(), unsafe_allow_html=True)
+            st.markdown(divider(), unsafe_allow_html=True)
 
-            st.markdown("#### Factor FWL ponderado")
+            st.markdown(section_title("Factor FWL ponderado"), unsafe_allow_html=True)
             c1, c2, c3 = st.columns(3)
             with c1: peso_base = st.number_input("Peso Base", 0.0, 1.0, 0.33, 0.01, key="pw_base")
             with c2: peso_adverso = st.number_input("Peso Adverso", 0.0, 1.0, 0.33, 0.01, key="pw_adv")
@@ -910,37 +885,45 @@ with col_right:
 
             suma = peso_base + peso_adverso + peso_optimista
             if abs(suma - 1.0) < 0.001:
-                st.markdown(badge("Válido", "success"), unsafe_allow_html=True)
+                st.markdown(pill("VALIDO", "#E8F5E9", GREEN), unsafe_allow_html=True)
             elif suma < 1.0:
-                st.markdown(badge(f"{1.0-suma:.2f} disponible", "warning"), unsafe_allow_html=True)
+                st.markdown(pill(f"{1.0-suma:.2f} DISPONIBLE", "#FFF8E1", "#B8860B"), unsafe_allow_html=True)
             else:
-                st.markdown(badge(f"Excede en {suma-1.0:.2f}", "danger"), unsafe_allow_html=True)
+                st.markdown(pill(f"EXCEDE {suma-1.0:.2f}", "#FFEBEE", RED), unsafe_allow_html=True)
 
             if df_fwl is not None and not df_fwl.empty and suma <= 1.0:
                 pesos = {'base': peso_base, 'adverso': peso_adverso, 'optimista': peso_optimista}
                 df_pond = calcular_fwl_ponderado(df_fwl, pesos)
                 if df_pond is not None:
-                    render_kpis_fwl(resumen_fwl(df_pond))
+                    res = resumen_fwl(df_pond)
+                    if res:
+                        c1, c2, c3, c4 = st.columns(4)
+                        with c1: st.markdown(card_metric("Promedio", f"{res.get('promedio', 0):.4f}", BLUE), unsafe_allow_html=True)
+                        with c2: st.markdown(card_metric("Maximo", f"{res.get('maximo', 0):.4f}", GREEN), unsafe_allow_html=True)
+                        with c3: st.markdown(card_metric("Minimo", f"{res.get('minimo', 0):.4f}", RED), unsafe_allow_html=True)
+                        with c4: st.markdown(card_metric("Volatilidad (s)", f"{res.get('volatilidad', 0):.4f}", GRAY), unsafe_allow_html=True)
                     st.plotly_chart(fig_fwl_ponderado(df_pond), use_container_width=True)
                 else:
                     st.info("No se pudo calcular el FWL ponderado.")
             elif suma > 1.0:
-                st.warning("Ajusta los pesos para que la suma no exceda 1.0")
+                st.warning("Ajuste los pesos para que la suma no exceda 1.0")
 
         # =====================================================================
         # TAB 2: PREDICCIONES
         # =====================================================================
         with tab2:
-            st.markdown("#### Datos de predicción")
+            st.markdown(section_title("Datos de prediccion"), unsafe_allow_html=True)
             filtros = st.columns(4)
             with filtros[0]:
-                if st.button("📊 Ver Base", use_container_width=True): st.session_state.pred_filtro = "Base"
+                if st.button("Ver Base", use_container_width=True): st.session_state.pred_filtro = "Base"
             with filtros[1]:
-                if st.button("📉 Ver Adverso", use_container_width=True): st.session_state.pred_filtro = "Adverso"
+                if st.button("Ver Adverso", use_container_width=True): st.session_state.pred_filtro = "Adverso"
             with filtros[2]:
-                if st.button("📈 Ver Optimista", use_container_width=True): st.session_state.pred_filtro = "Optimista"
+                if st.button("Ver Optimista", use_container_width=True): st.session_state.pred_filtro = "Optimista"
             with filtros[3]:
-                if st.button("👁️ Ver todas", use_container_width=True): st.session_state.pred_filtro = "Todas"
+                if st.button("Ver todas", use_container_width=True): st.session_state.pred_filtro = "Todas"
+
+            st.markdown(f"<p style='font-size:11px;color:{MUTED};margin:8px 0;'>Filtro activo: <b>{st.session_state.pred_filtro}</b></p>", unsafe_allow_html=True)
 
             df_end = datos.get('fecha_endogena')
             endogena_cols = datos.get('endogenas_cols', [])
@@ -968,21 +951,21 @@ with col_right:
 
                 st.dataframe(df_pred[cols_export], use_container_width=True, hide_index=True, height=400)
                 csv = df_pred[cols_export].to_csv(index=False).encode('utf-8')
-                st.download_button("⬇️ Descargar CSV", csv, f"predicciones_{st.session_state.modelo_seleccionado}.csv", "text/csv")
+                st.download_button("Descargar CSV", csv, f"predicciones_{st.session_state.modelo_seleccionado}.csv", "text/csv")
             else:
                 st.info("No hay datos de predicciones.")
 
         # =====================================================================
-        # TAB 3: DIAGNÓSTICOS
+        # TAB 3: DIAGNOSTICOS
         # =====================================================================
         with tab3:
             pruebas = datos.get('pruebas')
             render_metricas_diagnostico(pruebas)
-            st.markdown(section_divider(), unsafe_allow_html=True)
-            render_diagnosticos_ejecutivo(pruebas)
-            st.markdown(section_divider(), unsafe_allow_html=True)
+            st.markdown(divider(), unsafe_allow_html=True)
+            render_diagnosticos_corporativo(pruebas)
+            st.markdown(divider(), unsafe_allow_html=True)
 
-            st.markdown("#### Distribución de residuos")
+            st.markdown(section_title("Distribucion de residuos"), unsafe_allow_html=True)
             residuos = datos.get('residuos_ind')
             if residuos is not None and not residuos.empty:
                 res_col = None
@@ -994,18 +977,21 @@ with col_right:
                     vals = residuos[res_col].dropna().astype(float)
                     media, std = vals.mean(), vals.std()
                     st.plotly_chart(fig_histograma_residuos(vals, media, std), use_container_width=True)
+
+                    # Estadisticas en cards horizontales, no st.metric apretadas
+                    st.markdown(section_title("Estadisticas descriptivas"), unsafe_allow_html=True)
                     c1, c2, c3, c4, c5 = st.columns(5)
-                    c1.metric("Media", f"{media:.4f}")
-                    c2.metric("Desv. Std.", f"{std:.4f}")
-                    c3.metric("Asimetría", f"{stats.skew(vals):.4f}")
-                    c4.metric("Curtosis", f"{stats.kurtosis(vals):.4f}")
-                    c5.metric("N", f"{len(vals)}")
+                    with c1: st.markdown(card_metric("Media", f"{media:.4f}"), unsafe_allow_html=True)
+                    with c2: st.markdown(card_metric("Desv. Std.", f"{std:.4f}"), unsafe_allow_html=True)
+                    with c3: st.markdown(card_metric("Asimetria", f"{stats.skew(vals):.4f}"), unsafe_allow_html=True)
+                    with c4: st.markdown(card_metric("Curtosis", f"{stats.kurtosis(vals):.4f}"), unsafe_allow_html=True)
+                    with c5: st.markdown(card_metric("Observaciones", f"{len(vals)}"), unsafe_allow_html=True)
             else:
                 st.info("No hay datos de residuos.")
 
-            st.markdown(section_divider(), unsafe_allow_html=True)
+            st.markdown(divider(), unsafe_allow_html=True)
 
-            st.markdown("#### Coeficientes del modelo")
+            st.markdown(section_title("Coeficientes del modelo"), unsafe_allow_html=True)
             coefs = datos.get('coeficientes')
             if coefs is not None and not coefs.empty:
                 df_coef = coefs.copy()
@@ -1018,11 +1004,11 @@ with col_right:
                             return f"{xv:.4e}" if xv < 0.001 else f"{xv:.4f}"
                         except: return str(x)
                     df_coef['P-valor'] = df_coef['P_value'].apply(fmt_pval)
-                df_coef = df_coef.rename(columns={'Variable': 'Lag'})
-                df_display = df_coef[['Tipo', 'Lag', 'Coeficiente', 'P-valor']]
+                df_coef = df_coef.rename(columns={'Variable': 'Variable'})
+                df_display = df_coef[['Tipo', 'Variable', 'Coeficiente', 'P-valor']]
                 st.plotly_chart(fig_barras_coeficientes(df_coef), use_container_width=True)
                 def color_pval(v):
-                    try: return f"color: {COLOR_GREEN}; font-weight: 600;" if float(v) < 0.05 else f"color: {COLOR_RED};"
+                    try: return f"color: {GREEN}; font-weight: 700;" if float(v) < 0.05 else f"color: {RED};"
                     except: return ""
                 styler = df_display.style
                 if hasattr(styler, "map"):
@@ -1033,17 +1019,21 @@ with col_right:
             else:
                 st.info("No hay datos de coeficientes.")
 
-        # --- Barra de navegación inferior ---
-        st.markdown("<div style='height:60px;'></div>", unsafe_allow_html=True)
-        st.markdown(f"""
-        <div class="bottom-nav">
-            <button class="bottom-nav-btn" {"disabled" if current_idx==0 else ""}
-                onclick="window.parent.document.querySelector('button[key=\'btn_prev\']').click()">◀ Anterior</button>
-            <div class="bottom-nav-info">
-                <div>Modelo {current_idx + 1} de {len(modelos_list)}</div>
-                <div class="bottom-nav-model">{st.session_state.modelo_seleccionado}</div>
+        # --- Bottom nav bar (flechas funcionan via session state) ---
+        st.markdown("<div style='height:50px;'></div>", unsafe_allow_html=True)
+        nav_cols = st.columns([1, 2, 1])
+        with nav_cols[0]:
+            if st.button("← Anterior", disabled=current_idx==0, key="btn_prev_real", use_container_width=True):
+                st.session_state.modelo_seleccionado = modelos_list[current_idx - 1]
+                st.rerun()
+        with nav_cols[1]:
+            st.markdown(f"""
+            <div style="text-align:center;padding:8px 0;">
+                <p style="font-size:11px;color:{MUTED};margin:0;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Modelo {current_idx + 1} de {len(modelos_list)}</p>
+                <p style="font-size:13px;color:{NAVY};font-weight:700;margin:2px 0 0;">{st.session_state.modelo_seleccionado}</p>
             </div>
-            <button class="bottom-nav-btn" {"disabled" if current_idx==len(modelos_list)-1 else ""}
-                onclick="window.parent.document.querySelector('button[key=\'btn_next\']').click()">Siguiente ▶</button>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
+        with nav_cols[2]:
+            if st.button("Siguiente →", disabled=current_idx==len(modelos_list)-1, key="btn_next_real", use_container_width=True):
+                st.session_state.modelo_seleccionado = modelos_list[current_idx + 1]
+                st.rerun()
