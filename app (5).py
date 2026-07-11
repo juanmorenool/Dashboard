@@ -4,74 +4,26 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from scipy import stats
+import json
+import openpyxl
 
 
 # =============================================================================
-# SELECTOR DE TEMA (Sidebar)
+# PALETA Y THEMING (tonos banca: azul marino / azul / gris)
 # =============================================================================
-TEMAS = {
-    "Carbon & Azure": {
-        "COLOR_NAVY": "#1A1F2E",
-        "COLOR_BASE": "#2563EB",
-        "COLOR_ACCENT": "#3B82F6",
-        "COLOR_ADVERSO": "#DC2626",
-        "COLOR_OPTIMISTA": "#059669",
-        "COLOR_WARNING": "#D97706",
-        "COLOR_NEUTRAL": "#64748B",
-        "COLOR_BG": "#F8FAFC",
-        "COLOR_BORDER": "#E2E8F0",
-        "COLOR_TEXT": "#0F172A",
-        "COLOR_TEXT_MUTED": "#64748B",
-        "COLOR_TINT": "#EFF6FF",
-    },
-    "Deep Indigo & Teal": {
-        "COLOR_NAVY": "#312E81",
-        "COLOR_BASE": "#4F46E5",
-        "COLOR_ACCENT": "#6366F1",
-        "COLOR_ADVERSO": "#E11D48",
-        "COLOR_OPTIMISTA": "#0D9488",
-        "COLOR_WARNING": "#F59E0B",
-        "COLOR_NEUTRAL": "#6B7280",
-        "COLOR_BG": "#F9FAFB",
-        "COLOR_BORDER": "#E5E7EB",
-        "COLOR_TEXT": "#111827",
-        "COLOR_TEXT_MUTED": "#6B7280",
-        "COLOR_TINT": "#EEF2FF",
-    },
-    "Slate & Emerald": {
-        "COLOR_NAVY": "#0F172A",
-        "COLOR_BASE": "#0369A1",
-        "COLOR_ACCENT": "#0EA5E9",
-        "COLOR_ADVERSO": "#B91C1C",
-        "COLOR_OPTIMISTA": "#10B981",
-        "COLOR_WARNING": "#F97316",
-        "COLOR_NEUTRAL": "#475569",
-        "COLOR_BG": "#F1F5F9",
-        "COLOR_BORDER": "#CBD5E1",
-        "COLOR_TEXT": "#1E293B",
-        "COLOR_TEXT_MUTED": "#64748B",
-        "COLOR_TINT": "#F0F9FF",
-    },
-}
 
-# Inicializar tema en session_state
-if "tema_seleccionado" not in st.session_state:
-    st.session_state.tema_seleccionado = "Carbon & Azure"
-
-# Aplicar colores del tema activo
-_tema = TEMAS[st.session_state.tema_seleccionado]
-COLOR_NAVY = _tema["COLOR_NAVY"]
-COLOR_BASE = _tema["COLOR_BASE"]
-COLOR_ACCENT = _tema["COLOR_ACCENT"]
-COLOR_ADVERSO = _tema["COLOR_ADVERSO"]
-COLOR_OPTIMISTA = _tema["COLOR_OPTIMISTA"]
-COLOR_WARNING = _tema["COLOR_WARNING"]
-COLOR_NEUTRAL = _tema["COLOR_NEUTRAL"]
-COLOR_BG = _tema["COLOR_BG"]
-COLOR_BORDER = _tema["COLOR_BORDER"]
-COLOR_TEXT = _tema["COLOR_TEXT"]
-COLOR_TEXT_MUTED = _tema["COLOR_TEXT_MUTED"]
-COLOR_TINT = _tema["COLOR_TINT"]
+COLOR_NAVY = "#0B2545"          # Header, títulos
+COLOR_BASE = "#1B4B8F"          # Escenario Base
+COLOR_ACCENT = "#2E6FBA"        # Acentos interactivos
+COLOR_ADVERSO = "#C0392B"       # Escenario Adverso
+COLOR_OPTIMISTA = "#2E7D5B"     # Escenario Optimista
+COLOR_WARNING = "#C9862B"       # Estados marginales
+COLOR_NEUTRAL = "#5F6B7A"       # Series neutras (ponderado, normal teórica)
+COLOR_BG = "#F5F6F8"            # Fondo de página
+COLOR_BORDER = "#E3E6EA"        # Bordes de tarjetas/tablas
+COLOR_TEXT = "#1F2937"          # Texto principal
+COLOR_TEXT_MUTED = "#6B7280"    # Texto secundario
+COLOR_TINT = "#EAF1FB"          # Fondo tenue de acento
 
 _BADGE_PALETTE = {
     "success": ("#EAF6EF", "#1E5C41"),
@@ -92,6 +44,7 @@ def inject_theme_css():
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
     }}
 
+    /* Oculta el chrome por defecto de Streamlit para look más "producto" */
     #MainMenu {{ visibility: hidden; }}
     footer {{ visibility: hidden; }}
     header[data-testid="stHeader"] {{ background: transparent; }}
@@ -173,6 +126,7 @@ def inject_theme_css():
         border: 1px solid {COLOR_BORDER};
         border-radius: 8px;
     }}
+    /* Sidebar sticky */
     section[data-testid="stSidebar"] {{
         position: sticky;
         top: 0;
@@ -243,6 +197,19 @@ def section_divider():
 # =============================================================================
 # NAV FIJO (FLECHAS) QUE SÍ FUNCIONA EN STREAMLIT COMMUNITY CLOUD
 # =============================================================================
+# `position: sticky` no funciona porque los contenedores padre de Streamlit
+# tienen su propio `overflow`, que rompe el contexto de sticky.
+# `position: fixed` a secas tampoco funciona porque no sabemos de antemano
+# las coordenadas (left/width) del panel derecho: dependen del ancho del
+# sidebar, que el usuario puede colapsar.
+#
+# La solución: usamos st.container(key=...) para tener una clase CSS estable
+# (.st-key-<key>) y un pequeño script que, desde el iframe del componente,
+# accede a window.parent.document (permitido: mismo origen) para MEDIR en
+# tiempo real dónde está el panel de contenido y fijar el nav con esas
+# coordenadas exactas. También insertamos un "spacer" para que el contenido
+# no salte al volverse `fixed`.
+
 _STICKY_NAV_KEY = "sarimax_sticky_nav"
 
 
@@ -271,6 +238,7 @@ def render_nav_fijo(modelo_actual, current_idx, total, disabled_prev, disabled_n
         with cols_nav[3]:
             pass
 
+    # Script que fija el contenedor con estilo mínimo (solo botones visibles)
     components.html(f"""
     <script>
     (function() {{
@@ -283,14 +251,19 @@ def render_nav_fijo(modelo_actual, current_idx, total, disabled_prev, disabled_n
             const header = doc.querySelector('header[data-testid="stHeader"]');
             const headerH = header ? header.offsetHeight : 0;
 
+            // Encontrar el wrapper del contenedor para hacerlo fixed
+            // El contenedor de Streamlit tiene estructura: .st-key-xxx > div > div
             let wrapper = nav.closest('.element-container');
             if (!wrapper) wrapper = nav.parentElement;
 
             const yaFijado = wrapper.dataset.stickyFijado === "1";
 
             if (!yaFijado) {{
+                // Guardar altura original para el spacer
                 const altoOriginal = nav.offsetHeight;
                 wrapper.dataset.altoOriginal = altoOriginal;
+
+                // Crear spacer antes de modificar el wrapper
                 let spacer = wrapper.previousElementSibling;
                 if (!spacer || !spacer.classList.contains('sticky-nav-spacer')) {{
                     spacer = doc.createElement("div");
@@ -300,6 +273,7 @@ def render_nav_fijo(modelo_actual, current_idx, total, disabled_prev, disabled_n
                 }}
             }}
 
+            // Aplicar estilo fixed al wrapper (no al nav interno)
             wrapper.style.position = "fixed";
             wrapper.style.top = headerH + "px";
             wrapper.style.left = "0";
@@ -310,17 +284,19 @@ def render_nav_fijo(modelo_actual, current_idx, total, disabled_prev, disabled_n
             wrapper.style.border = "none";
             wrapper.style.boxShadow = "none";
             wrapper.style.boxSizing = "border-box";
-            wrapper.style.pointerEvents = "none";
+            wrapper.style.pointerEvents = "none";  /* Dejar pasar clicks al contenido debajo */
 
+            // El nav interno SÍ recibe clicks - estilo minimalista
             nav.style.pointerEvents = "auto";
-            nav.style.background = "rgba(255, 255, 255, 0.0)";
+            nav.style.background = "rgba(255, 255, 255, 0.0)";  /* TOTALMENTE transparente */
             nav.style.backdropFilter = "none";
             nav.style.padding = "4px 0";
             nav.style.borderBottom = "none";
-            nav.style.maxWidth = "500px";
-            nav.style.margin = "0";
+            nav.style.maxWidth = "500px";  /* Solo el ancho de los botones */
+            nav.style.margin = "0";        /* Alinear a la izquierda */
             nav.style.borderRadius = "0";
 
+            // Ocultar el fondo del contenedor de columnas de Streamlit
             const colContainer = nav.querySelector('[data-testid="stHorizontalBlock"]');
             if (colContainer) {{
                 colContainer.style.background = "transparent";
@@ -353,6 +329,8 @@ if "uploaded_file" not in st.session_state:
     st.session_state.uploaded_file = None
 if "modelos_data" not in st.session_state:
     st.session_state.modelos_data = {}
+if "meta_contexto" not in st.session_state:
+    st.session_state.meta_contexto = None
 if "modelo_seleccionado" not in st.session_state:
     st.session_state.modelo_seleccionado = None
 if "ordenar_por_pruebas" not in st.session_state:
@@ -402,6 +380,37 @@ def clasificar_variable(var_name):
         return 'Otro'
 
 
+def leer_meta_embebida(file, prefix="sarimax_meta"):
+    """
+    Lee metadata de contexto (país, cartera, parámetros del motor, etc.)
+    embebida como Custom Document Properties del propio archivo Excel.
+
+    No usa ninguna hoja del libro, así que es invisible para parsear_excel
+    y para cualquier script legacy que itere xls.sheet_names. Si el motor
+    escribió la metadata partida en varias propiedades (sarimax_meta_01,
+    _02, ...) porque el string era largo, aquí se reensambla.
+
+    Devuelve un dict con la metadata, o None si el archivo no la trae
+    (por ejemplo, archivos generados antes de este cambio).
+    """
+    try:
+        file.seek(0)
+        wb = openpyxl.load_workbook(file, read_only=True)
+        props = wb.custom_doc_props
+
+        n_prop_name = f"{prefix}_n"
+        if n_prop_name not in props.names:
+            return None
+
+        n_partes = int(props[n_prop_name].value)
+        partes = [props[f"{prefix}_{idx:02d}"].value for idx in range(1, n_partes + 1)]
+        return json.loads("".join(partes))
+    except Exception:
+        return None
+    finally:
+        file.seek(0)  # reposicionar el buffer para que parsear_excel lo pueda leer después
+
+
 def parsear_excel(file):
     """
     Parser robusto para el formato fijo de Excel SARIMAX.
@@ -429,6 +438,7 @@ def parsear_excel(file):
 
         modelo = {"nombre": sheet_name}
 
+        # SECCIÓN 1: Fecha + Endógena + Exógenas + FWL
         fecha_idx = col_map.get('fecha', [0])[0]
         base_idx = col_map.get('BASE', [1])[0]
         adv_idx = col_map.get('ADVERSO', [2])[0]
@@ -476,6 +486,7 @@ def parsear_excel(file):
         else:
             modelo['exogenas'] = None
 
+        # SECCIÓN 2: FWL 12 meses
         fwl_cols = []
         for c in ['FWL_BASE', 'FWL_ADVERSO', 'FWL_OPTIMISTA']:
             if c in col_map:
@@ -486,11 +497,13 @@ def parsear_excel(file):
             df_fwl.columns = ['fecha'] + fwl_cols
             df_fwl = df_fwl.dropna(how='all').reset_index(drop=True)
             df_fwl['fecha'] = convertir_fecha(df_fwl['fecha'])
+            # Eliminar filas donde FWL_BASE es NaN (período sin FWL)
             df_fwl = df_fwl.dropna(subset=['FWL_BASE']).reset_index(drop=True)
             modelo['fwl_12m'] = df_fwl
         else:
             modelo['fwl_12m'] = None
 
+        # SECCIÓN 3: Factor FWL por Año
         if 'Año' in col_map and 'Escenario' in col_map and 'Factor FWL' in col_map:
             idx_anual = [col_map['Año'][0], col_map['Escenario'][0], col_map['Factor FWL'][0]]
             df_anual = df_raw.iloc[2:, idx_anual].copy()
@@ -500,6 +513,7 @@ def parsear_excel(file):
         else:
             modelo['fwl_anual'] = None
 
+        # SECCIÓN 4: Residuos individuales
         if 'Obs' in col_map and 'Residuo' in col_map:
             idx_res = [col_map['Obs'][0], col_map['Residuo'][0]]
             df_res = df_raw.iloc[2:, idx_res].copy()
@@ -509,6 +523,7 @@ def parsear_excel(file):
         else:
             modelo['residuos_ind'] = None
 
+        # SECCIÓN 5: Resumen Distribución Residuos
         if 'Estadistico' in col_map and 'Valor' in col_map:
             idx_est = col_map['Estadistico'][0]
             idx_val = col_map['Valor'][0]
@@ -519,6 +534,7 @@ def parsear_excel(file):
         else:
             modelo['resumen_residuos'] = None
 
+        # SECCIÓN 6: Coeficientes del Modelo
         if 'Variable' in col_map and 'Coeficiente' in col_map and 'P_value' in col_map:
             idx_var = col_map['Variable'][0]
             idx_coef = col_map['Coeficiente'][0]
@@ -530,6 +546,7 @@ def parsear_excel(file):
         else:
             modelo['coeficientes'] = None
 
+        # SECCIÓN 7: Pruebas Estadísticas
         if 'Prueba' in col_map and 'Estadistico' in col_map and 'P_value' in col_map:
             idx_prueba = col_map['Prueba'][0]
             idx_est = col_map['Estadistico'][-1]
@@ -652,22 +669,6 @@ col_left, col_right = st.columns([1, 3])
 with col_left:
     st.subheader("Cargar modelos")
 
-    # --- SELECTOR DE TEMA ---
-    st.markdown(f"<p style='font-size:12px;color:{COLOR_TEXT_MUTED};margin:0 0 4px;'>Tema visual</p>", unsafe_allow_html=True)
-    tema_sel = st.selectbox(
-        "Tema",
-        list(TEMAS.keys()),
-        index=list(TEMAS.keys()).index(st.session_state.tema_seleccionado),
-        label_visibility="collapsed",
-        key="tema_selector"
-    )
-    if tema_sel != st.session_state.tema_seleccionado:
-        st.session_state.tema_seleccionado = tema_sel
-        st.rerun()
-
-    section_divider()
-    # ------------------------
-
     uploaded = st.file_uploader(
         "Sube un único archivo Excel. Cada hoja del archivo se interpreta como un modelo distinto.",
         type=["xlsx"]
@@ -678,16 +679,19 @@ with col_left:
         if not st.session_state.modelos_data or uploaded.name != getattr(st.session_state, 'last_file_name', None):
             with st.spinner("Parseando modelos..."):
                 st.session_state.modelos_data = parsear_excel(uploaded)
+                st.session_state.meta_contexto = leer_meta_embebida(uploaded)
                 st.session_state.last_file_name = uploaded.name
             st.success(f"Archivo cargado: {uploaded.name} ({uploaded.size / 1024:.1f} KB)")
 
             if st.session_state.modelo_seleccionado is None or st.session_state.modelo_seleccionado not in st.session_state.modelos_data:
                 st.session_state.modelo_seleccionado = list(st.session_state.modelos_data.keys())[0]
 
+    # Botón eliminar SIEMPRE visible cuando hay datos cargados
     if st.session_state.uploaded_file is not None:
         if st.button("Eliminar archivo", key="btn_eliminar"):
             st.session_state.uploaded_file = None
             st.session_state.modelos_data = {}
+            st.session_state.meta_contexto = None
             st.session_state.modelo_seleccionado = None
             st.session_state.last_file_name = None
             st.rerun()
@@ -695,15 +699,46 @@ with col_left:
     if st.session_state.modelos_data:
         section_divider()
 
+        # --- CONTEXTO DE LA CORRIDA (metadata embebida en el Excel) ---
+        meta = st.session_state.meta_contexto
+        if meta:
+            with st.expander("📋 Contexto de la corrida", expanded=True):
+                st.markdown(
+                    f"{badge(meta.get('pais', 'N/A'), 'neutral')} "
+                    f"{badge(meta.get('cartera', 'N/A'), 'neutral')} "
+                    f"{badge('Endógena · ' + str(meta.get('motor_tipo_endogena', 'N/A')), 'neutral')}",
+                    unsafe_allow_html=True
+                )
+                c_meta1, c_meta2 = st.columns(2)
+                with c_meta1:
+                    metric_card("Modo endógena (generador)", meta.get('generador_modo_endogena', 'N/A'))
+                    metric_card("Ventana media móvil", meta.get('generador_ventana_mm', 'N/A'))
+                    metric_card("VIF máximo", meta.get('motor_vif_max', 'N/A'))
+                with c_meta2:
+                    fwl_min = meta.get('motor_fwl_factor_min', '?')
+                    fwl_max = meta.get('motor_fwl_factor_max', '?')
+                    metric_card("Rango FWL filtrado", f"{fwl_min} – {fwl_max}")
+                    metric_card("Máx. exógenas por modelo", meta.get('motor_max_exog_por_modelo', 'N/A'))
+                    metric_card("Modelos exportados (top)", meta.get('motor_top_exportar', 'N/A'))
+        else:
+            st.caption(
+                "Este archivo no trae metadata de contexto embebida "
+                "(se generó antes de activar esta función, o fue editado fuera del pipeline)."
+            )
+
+        section_divider()
+
+        # --- ORDENAMIENTO SIEMPRE ACTIVO (default: por pruebas aprobadas ↓) ---
         criterio = st.radio(
             "Ordenar modelos por:",
             ["Nombre (A-Z)", "Pruebas aprobadas ↓", "Pruebas aprobadas ↑"],
-            index=1,
+            index=1,  # Default: Pruebas aprobadas ↓
             key="criterio_orden"
         )
         st.session_state.criterio_ordenamiento = criterio
-        st.session_state.ordenar_por_pruebas = True
+        st.session_state.ordenar_por_pruebas = True  # Siempre activo
 
+        # Preparar lista ordenada
         modelos_con_pruebas = []
         for nombre, datos in st.session_state.modelos_data.items():
             apr, tot = contar_pruebas_aprobadas(datos.get('pruebas'))
@@ -719,6 +754,7 @@ with col_left:
         modelos_list = [m[0] for m in modelos_con_pruebas]
         pruebas_dict = {m[0]: (m[1], m[2]) for m in modelos_con_pruebas}
 
+        # Dropdown con info de pruebas
         opciones = []
         for m in modelos_list:
             apr, tot = pruebas_dict.get(m, (0, 3))
@@ -734,6 +770,7 @@ with col_left:
 
         section_divider()
 
+        # --- INFO DEL MODELO SELECCIONADO ---
         datos = st.session_state.modelos_data.get(modelo_nombre, {})
 
         st.markdown(f"<p style='font-size:12px;color:{COLOR_TEXT_MUTED};margin:0 0 4px;'>Modelo actual</p>", unsafe_allow_html=True)
@@ -741,6 +778,7 @@ with col_left:
 
         metric_card("Observaciones", datos.get('observaciones', 'N/A'))
 
+        # --- EXÓGENAS CON SIGNIFICANCIA (SIEMPRE VISIBLE) ---
         exogenas = datos.get('exogenas_nombres', [])
         if exogenas:
             section_divider()
@@ -789,6 +827,7 @@ with col_left:
 
         section_divider()
 
+        # --- SWITCH FLECHAS STICKY ---
         st.session_state.flechas_sticky = st.toggle(
             "Anclar flechas al scroll",
             value=st.session_state.get("flechas_sticky", False),
@@ -813,6 +852,7 @@ with col_right:
     elif st.session_state.modelo_seleccionado and st.session_state.modelo_seleccionado in st.session_state.modelos_data:
         datos = st.session_state.modelos_data[st.session_state.modelo_seleccionado]
 
+        # Flechas de navegación SIEMPRE visibles
         modelos_list = list(st.session_state.modelos_data.keys())
         if st.session_state.ordenar_por_pruebas:
             modelos_con_pruebas = []
@@ -832,6 +872,8 @@ with col_right:
         disabled_prev = current_idx == 0
         disabled_next = current_idx == len(modelos_list) - 1
 
+        # Si sticky está activado, usar render_nav_fijo (con JS)
+        # Si no, renderizar flechas normales
         if st.session_state.get("flechas_sticky", False):
             prev_clicked, next_clicked = render_nav_fijo(
                 st.session_state.modelo_seleccionado,
@@ -866,6 +908,9 @@ with col_right:
 
         tab1, tab2, tab3 = st.tabs(["Visualización", "Predicciones", "Diagnósticos"])
 
+        # =====================================================================
+        # TAB 1: VISUALIZACIÓN
+        # =====================================================================
         with tab1:
             st.header(f"Gráficas - {st.session_state.modelo_seleccionado}")
 
@@ -879,6 +924,7 @@ with col_right:
                         if st.checkbox(ex, key=f"exog_{ex}_{st.session_state.modelo_seleccionado}"):
                             exog_seleccionadas.append(ex)
 
+            # Gráfico de Predicciones
             df_end = datos.get('fecha_endogena')
             endogena_cols = datos.get('endogenas_cols', [])
 
@@ -941,6 +987,7 @@ with col_right:
 
             section_divider()
 
+            # Factor FWL por Año y Escenario
             st.subheader("Factor FWL por año y escenario")
             df_fwl_anual = datos.get('fwl_anual')
             if df_fwl_anual is not None and not df_fwl_anual.empty:
@@ -968,6 +1015,7 @@ with col_right:
 
             section_divider()
 
+            # Factor FWL a 12 Meses
             st.subheader("Factor FWL a 12 meses")
             df_fwl = datos.get('fwl_12m')
             if df_fwl is not None and not df_fwl.empty:
@@ -1015,6 +1063,7 @@ with col_right:
 
             section_divider()
 
+            # Factor FWL Ponderado (Dinámico)
             st.subheader("Factor FWL ponderado (dinámico)")
             st.markdown(
                 f"<span style='color:{COLOR_TEXT_MUTED};font-size:13px;'>"
@@ -1085,6 +1134,9 @@ with col_right:
             elif suma_pesos > 1.0:
                 st.warning("Ajusta los pesos para que la suma no exceda 1.0")
 
+        # =====================================================================
+        # TAB 2: PREDICCIONES
+        # =====================================================================
         with tab2:
             st.header(f"Predicciones - {st.session_state.modelo_seleccionado}")
 
@@ -1128,9 +1180,13 @@ with col_right:
             else:
                 st.info("No hay datos de predicciones para este modelo.")
 
+        # =====================================================================
+        # TAB 3: DIAGNÓSTICOS
+        # =====================================================================
         with tab3:
             st.header("Diagnósticos")
 
+            # Indicadores del Modelo
             pruebas = datos.get('pruebas')
             if pruebas is not None and not pruebas.empty:
                 lb_p = None
@@ -1175,6 +1231,7 @@ with col_right:
 
             section_divider()
 
+            # Distribución de Residuos
             st.subheader("Distribución de residuos")
             residuos = datos.get('residuos_ind')
             if residuos is not None and not residuos.empty:
@@ -1230,12 +1287,16 @@ with col_right:
 
             section_divider()
 
+            # Coeficientes del Modelo
             st.subheader("Coeficientes del modelo")
             coefs = datos.get('coeficientes')
             if coefs is not None and not coefs.empty:
                 df_coef = coefs.copy()
+
+                # Clasificar variables
                 df_coef['Tipo'] = df_coef['Variable'].apply(clasificar_variable)
 
+                # Formatear P-valor
                 if 'P_value' in df_coef.columns:
                     def fmt_pval(x):
                         if pd.isna(x):
@@ -1250,7 +1311,10 @@ with col_right:
                             return str(x)
                     df_coef['P-valor'] = df_coef['P_value'].apply(fmt_pval)
 
+                # Renombrar Variable a Lag (como en el original)
                 df_coef = df_coef.rename(columns={'Variable': 'Lag'})
+
+                # Reordenar columnas: Tipo, Lag, Coeficiente, P-valor
                 cols_display = ['Tipo', 'Lag', 'Coeficiente', 'P-valor']
                 df_mostrar = df_coef[cols_display]
 
@@ -1274,6 +1338,7 @@ with col_right:
 
             section_divider()
 
+            # Pruebas Estadísticas
             st.subheader("Pruebas estadísticas")
 
             if pruebas is not None and not pruebas.empty:
