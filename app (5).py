@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from scipy import stats
 import json
 import openpyxl
@@ -33,6 +34,8 @@ SCORE_COLORS = {
     'C': ("#FFF8E1", "#B8860B"),
     'D': ("#FFEBEE", "#B83232"),
 }
+
+SCORE_NUMERIC = {'A': 10, 'B': 7.5, 'C': 5, 'D': 2.5, 'N/A': 0}
 
 PAISES_MAP = {
     'colombia': 'Colombia',
@@ -419,18 +422,22 @@ def calcular_score(p_val, prueba_nombre=""):
 
 def obtener_score_prueba(pruebas_df, nombre_prueba):
     if pruebas_df is None or pruebas_df.empty:
-        return 'N/A', None
+        return 'N/A', None, None
     nombre_lower = nombre_prueba.lower()
     for _, row in pruebas_df.iterrows():
         prueba = str(row.get('Prueba', '')).lower()
         p_val = row.get('P_value', None)
+        estadistico = row.get('Estadistico', None)
         if 'ljung' in nombre_lower and ('ljung' in prueba or 'box' in prueba):
-            return calcular_score(p_val, prueba)
+            score, colors = calcular_score(p_val, prueba)
+            return score, colors, p_val
         elif 'jarque' in nombre_lower and ('jarque' in prueba or 'bera' in prueba):
-            return calcular_score(p_val, prueba)
+            score, colors = calcular_score(p_val, prueba)
+            return score, colors, p_val
         elif 'hetero' in nombre_lower and ('hetero' in prueba or 'arch' in prueba):
-            return calcular_score(p_val, prueba)
-    return 'N/A', None
+            score, colors = calcular_score(p_val, prueba)
+            return score, colors, p_val
+    return 'N/A', None, None
 
 def obtener_scores_modelo(pruebas_df):
     scores = {}
@@ -438,6 +445,31 @@ def obtener_scores_modelo(pruebas_df):
     scores['jarque_bera'] = obtener_score_prueba(pruebas_df, 'jarque')
     scores['heterocedasticidad'] = obtener_score_prueba(pruebas_df, 'hetero')
     return scores
+
+def calcular_score_global(scores_dict):
+    if not scores_dict:
+        return 0.0
+    pesos = {'ljung_box': 0.40, 'jarque_bera': 0.30, 'heterocedasticidad': 0.30}
+    total = 0.0
+    peso_total = 0.0
+    for key, peso in pesos.items():
+        score_str, _, _ = scores_dict.get(key, ('N/A', None, None))
+        if score_str != 'N/A':
+            total += SCORE_NUMERIC.get(score_str, 0) * peso
+            peso_total += peso
+    if peso_total == 0:
+        return 0.0
+    return round(total / peso_total, 1)
+
+def color_score_global(score):
+    if score >= 8.5:
+        return GREEN
+    elif score >= 6.5:
+        return BLUE
+    elif score >= 4.0:
+        return "#B8860B"
+    else:
+        return RED
 
 def score_badge(score, bg_color, fg_color):
     return f'<span style="background:{bg_color};color:{fg_color};font-size:12px;padding:3px 10px;border-radius:4px;font-weight:700;">{score}</span>'
@@ -608,6 +640,17 @@ def fig_barras_coeficientes(df_coef):
     fig.update_layout(title="Coeficientes del Modelo", xaxis_title="Valor", yaxis_title="Variable", showlegend=False)
     return aplicar_tema_plotly(fig)
 
+def fig_distribucion_scores(score_counts):
+    labels = ['A (Excelente)', 'B (Bueno)', 'C (Aceptable)', 'D (Deficiente)']
+    values = [score_counts.get('A', 0), score_counts.get('B', 0), score_counts.get('C', 0), score_counts.get('D', 0)]
+    colors_pie = [SCORE_COLORS['A'][1], SCORE_COLORS['B'][1], SCORE_COLORS['C'][1], SCORE_COLORS['D'][1]]
+    fig = go.Figure(data=[go.Pie(labels=labels, values=values, hole=0.45,
+                                   marker_colors=colors_pie,
+                                   textinfo='value', textfont_size=12)])
+    fig.update_layout(title="Distribucion de Scores Globales", showlegend=True,
+                      legend=dict(orientation='h', yanchor='bottom', y=-0.1))
+    return aplicar_tema_plotly(fig)
+
 # =============================================================================
 # DIAGNOSTICOS
 # =============================================================================
@@ -632,6 +675,37 @@ def evaluar_prueba(prueba, p_val):
         estado = "NO CUMPLE"
     return estado, (bg, fg, estado), score, bg, fg
 
+def fmt_pvalor(v):
+    try:
+        if pd.isna(v): return "—"
+        vf = float(v)
+        return f"{vf:.4f}" if vf >= 0.001 else f"{vf:.2e}"
+    except: return str(v)
+
+def tooltip_score(prueba_nombre, p_val, score):
+    p_str = fmt_pvalor(p_val)
+    interpretaciones = {
+        'Ljung-Box': {
+            'A': f"p = {p_str} — Sin evidencia de autocorrelacion en residuos",
+            'B': f"p = {p_str} — Sin evidencia significativa de autocorrelacion",
+            'C': f"p = {p_str} — Evidencia debil de autocorrelacion. Considerar revisar rezagos",
+            'D': f"p = {p_str} — Autocorrelacion significativa presente en residuos",
+        },
+        'Jarque-Bera': {
+            'A': f"p = {p_str} — Residuos con distribucion normal",
+            'B': f"p = {p_str} — Sin evidencia significativa de no-normalidad",
+            'C': f"p = {p_str} — Evidencia debil de no-normalidad. Revisar asimetria",
+            'D': f"p = {p_str} — Residuos no normales. Intervalos de confianza pueden estar sesgados",
+        },
+        'Heterocedasticidad': {
+            'A': f"p = {p_str} — Varianza constante (homocedasticidad)",
+            'B': f"p = {p_str} — Sin evidencia significativa de heterocedasticidad",
+            'C': f"p = {p_str} — Evidencia debil de varianza no constante",
+            'D': f"p = {p_str} — Heterocedasticidad presente. Errores estandar pueden ser ineficientes",
+        },
+    }
+    return interpretaciones.get(prueba_nombre, {}).get(score, f"p = {p_str}")
+
 def render_diagnosticos_corporativo(pruebas_df):
     if pruebas_df is None or pruebas_df.empty:
         st.info("No hay datos de pruebas estadisticas.")
@@ -644,6 +718,7 @@ def render_diagnosticos_corporativo(pruebas_df):
         prueba = row['Prueba']
         p_val = row['P_value']
         estado, _, score, bg, fg = evaluar_prueba(prueba, p_val)
+        tooltip = tooltip_score(prueba, p_val, score)
         filas.append({
             'Diagnostico': prueba,
             'Score': score,
@@ -651,23 +726,26 @@ def render_diagnosticos_corporativo(pruebas_df):
             'ScoreFg': fg,
             'P-valor': p_val,
             'Estadistico': row.get('Estadistico', '—'),
+            'Tooltip': tooltip,
         })
     cols = st.columns(len(filas))
     for i, f in enumerate(filas):
         with cols[i]:
             st.markdown(f"""
-            <div style="background:{f['ScoreBg']};border:1px solid {BORDER};border-radius:6px;padding:16px;text-align:center;">
+            <div style="background:{f['ScoreBg']};border:1px solid {BORDER};border-radius:6px;padding:16px;text-align:center;" title="{f['Tooltip']}">
                 <p style="font-size:10px;color:{MUTED};margin:0 0 6px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">{f['Diagnostico']}</p>
                 <p style="font-size:28px;font-weight:700;color:{f['ScoreFg']};margin:0;">{f['Score']}</p>
                 <p style="font-size:11px;color:{MUTED};margin:4px 0 0;">p = {fmt_pvalor(f['P-valor'])}</p>
             </div>
             """, unsafe_allow_html=True)
+            with st.expander("Ver detalle", expanded=False):
+                st.markdown(f"<p style='font-size:12px;color:{TEXT};margin:0;'>{f['Tooltip']}</p>", unsafe_allow_html=True)
     st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
     st.markdown(section_title("Detalle Tecnico"), unsafe_allow_html=True)
     df_tec = pd.DataFrame(filas)[['Diagnostico', 'Estadistico', 'P-valor', 'Score']]
     df_tec['P-valor'] = df_tec['P-valor'].apply(fmt_pvalor)
     df_tec['Estadistico'] = df_tec['Estadistico'].apply(fmt_pvalor)
-    def color_score(val):
+    def color_score_cell(val):
         if val == "A": return f"color: {GREEN}; font-weight: 700;"
         elif val == "B": return f"color: {BLUE}; font-weight: 700;"
         elif val == "C": return f"color: #B8860B; font-weight: 700;"
@@ -675,46 +753,216 @@ def render_diagnosticos_corporativo(pruebas_df):
         return ""
     styler = df_tec.style
     if hasattr(styler, "map"):
-        styler = styler.map(color_score, subset=['Score'])
+        styler = styler.map(color_score_cell, subset=['Score'])
     else:
-        styler = styler.applymap(color_score, subset=['Score'])
+        styler = styler.applymap(color_score_cell, subset=['Score'])
     st.dataframe(styler, use_container_width=True, hide_index=True)
-
-def fmt_pvalor(v):
-    try:
-        if pd.isna(v): return "—"
-        vf = float(v)
-        return f"{vf:.4f}" if vf >= 0.001 else f"{vf:.2e}"
-    except: return str(v)
 
 def render_metricas_diagnostico(pruebas_df):
     if pruebas_df is None or pruebas_df.empty:
         return
     scores = obtener_scores_modelo(pruebas_df)
-    c1, c2, c3 = st.columns(3)
+    score_global = calcular_score_global(scores)
+    color_sg = color_score_global(score_global)
+    c1, c2, c3, c4 = st.columns(4)
     with c1:
-        score, (bg, fg) = scores.get('ljung_box', ('N/A', ESTADO_NEUTRAL))
-        st.markdown(card_metric("Ljung-Box (Score)", score, fg if score != 'N/A' else TEXT), unsafe_allow_html=True)
+        score, (bg, fg), p_val = scores.get('ljung_box', ('N/A', ESTADO_NEUTRAL, None))
+        st.markdown(card_metric("Ljung-Box", score, fg if score != 'N/A' else TEXT), unsafe_allow_html=True)
     with c2:
-        score, (bg, fg) = scores.get('jarque_bera', ('N/A', ESTADO_NEUTRAL))
-        st.markdown(card_metric("Jarque-Bera (Score)", score, fg if score != 'N/A' else TEXT), unsafe_allow_html=True)
+        score, (bg, fg), p_val = scores.get('jarque_bera', ('N/A', ESTADO_NEUTRAL, None))
+        st.markdown(card_metric("Jarque-Bera", score, fg if score != 'N/A' else TEXT), unsafe_allow_html=True)
     with c3:
-        score, (bg, fg) = scores.get('heterocedasticidad', ('N/A', ESTADO_NEUTRAL))
-        st.markdown(card_metric("Heterocedasticidad (Score)", score, fg if score != 'N/A' else TEXT), unsafe_allow_html=True)
+        score, (bg, fg), p_val = scores.get('heterocedasticidad', ('N/A', ESTADO_NEUTRAL, None))
+        st.markdown(card_metric("Heterocedasticidad", score, fg if score != 'N/A' else TEXT), unsafe_allow_html=True)
+    with c4:
+        st.markdown(card_metric("Score Global", f"{score_global}/10", color_sg), unsafe_allow_html=True)
 
+# =============================================================================
+# RESUMEN EJECUTIVO
+# =============================================================================
+def calcular_resumen_corrida(modelos_data):
+    if not modelos_data:
+        return {}
+    total = len(modelos_data)
+    scores_globales = []
+    distribucion_scores = {'A': 0, 'B': 0, 'C': 0, 'D': 0, 'N/A': 0}
+    ar_total = 0
+    ma_total = 0
+    modelos_con_coefs = 0
+    top_models = []
+    for nombre, datos in modelos_data.items():
+        pruebas = datos.get('pruebas')
+        scores = obtener_scores_modelo(pruebas)
+        sg = calcular_score_global(scores)
+        scores_globales.append((nombre, sg, scores))
+        # Contar score global categorizado
+        if sg >= 8.5:
+            distribucion_scores['A'] += 1
+        elif sg >= 6.5:
+            distribucion_scores['B'] += 1
+        elif sg >= 4.0:
+            distribucion_scores['C'] += 1
+        elif sg > 0:
+            distribucion_scores['D'] += 1
+        else:
+            distribucion_scores['N/A'] += 1
+        coefs = datos.get('coeficientes')
+        if coefs is not None and not coefs.empty:
+            ar, ma = contar_ar_ma(coefs)
+            ar_total += ar
+            ma_total += ma
+            modelos_con_coefs += 1
+    scores_globales.sort(key=lambda x: x[1], reverse=True)
+    top5 = scores_globales[:5]
+    bottom5 = scores_globales[-5:]
+    promedio_ar = round(ar_total / modelos_con_coefs, 1) if modelos_con_coefs > 0 else 0
+    promedio_ma = round(ma_total / modelos_con_coefs, 1) if modelos_con_coefs > 0 else 0
+    buenos = sum(1 for _, sg, _ in scores_globales if sg >= 7.0)
+    regulares = sum(1 for _, sg, _ in scores_globales if 4.0 <= sg < 7.0)
+    deficientes = sum(1 for _, sg, _ in scores_globales if 0 < sg < 4.0)
+    return {
+        'total': total,
+        'buenos': buenos,
+        'regulares': regulares,
+        'deficientes': deficientes,
+        'sin_score': distribucion_scores['N/A'],
+        'distribucion': distribucion_scores,
+        'top5': top5,
+        'bottom5': bottom5,
+        'promedio_ar': promedio_ar,
+        'promedio_ma': promedio_ma,
+        'scores_globales': scores_globales,
+    }
+
+def render_resumen_ejecutivo(resumen):
+    if not resumen:
+        return
+    st.markdown(section_title("Resumen de la corrida"), unsafe_allow_html=True)
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.markdown(card_metric("Modelos cargados", str(resumen['total']), NAVY), unsafe_allow_html=True)
+    with c2:
+        st.markdown(card_metric("Modelos buenos (>=7)", str(resumen['buenos']), GREEN), unsafe_allow_html=True)
+    with c3:
+        st.markdown(card_metric("Modelos regulares (4-7)", str(resumen['regulares']), "#B8860B"), unsafe_allow_html=True)
+    with c4:
+        st.markdown(card_metric("Modelos deficientes (<4)", str(resumen['deficientes']), RED), unsafe_allow_html=True)
+    st.markdown(divider(), unsafe_allow_html=True)
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        st.markdown(section_title("Distribucion de calidad"), unsafe_allow_html=True)
+        fig = fig_distribucion_scores(resumen['distribucion'])
+        st.plotly_chart(fig, use_container_width=True, key="pie_resumen")
+    with c2:
+        st.markdown(section_title("Estructura promedio"), unsafe_allow_html=True)
+        st.markdown(card_metric("Promedio terminos AR", str(resumen['promedio_ar']), BLUE), unsafe_allow_html=True)
+        st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+        st.markdown(card_metric("Promedio terminos MA", str(resumen['promedio_ma']), BLUE), unsafe_allow_html=True)
+    st.markdown(divider(), unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown(section_title("Top 5 modelos"), unsafe_allow_html=True)
+        top_data = []
+        for nombre, sg, scores in resumen['top5']:
+            mini = []
+            for k in ['ljung_box', 'jarque_bera', 'heterocedasticidad']:
+                s, _, _ = scores.get(k, ('N/A', None, None))
+                mini.append(s)
+            top_data.append({'Modelo': nombre, 'Score': f"{sg}/10", 'Scores': '|'.join(mini)})
+        st.dataframe(pd.DataFrame(top_data), use_container_width=True, hide_index=True)
+    with c2:
+        st.markdown(section_title("Bottom 5 modelos"), unsafe_allow_html=True)
+        bottom_data = []
+        for nombre, sg, scores in resumen['bottom5']:
+            mini = []
+            for k in ['ljung_box', 'jarque_bera', 'heterocedasticidad']:
+                s, _, _ = scores.get(k, ('N/A', None, None))
+                mini.append(s)
+            bottom_data.append({'Modelo': nombre, 'Score': f"{sg}/10", 'Scores': '|'.join(mini)})
+        st.dataframe(pd.DataFrame(bottom_data), use_container_width=True, hide_index=True)
+
+# =============================================================================
+# COMPARADOR DE MODELOS
+# =============================================================================
+def render_comparador(modelos_data, modelos_seleccionados):
+    if not modelos_seleccionados or len(modelos_seleccionados) < 2:
+        st.info("Seleccione al menos 2 modelos para comparar.")
+        return
+    n = len(modelos_seleccionados)
+    st.markdown(section_title(f"Comparando {n} modelos"), unsafe_allow_html=True)
+    cols = st.columns(n)
+    for i, nombre in enumerate(modelos_seleccionados):
+        datos = modelos_data.get(nombre, {})
+        pruebas = datos.get('pruebas')
+        scores = obtener_scores_modelo(pruebas)
+        sg = calcular_score_global(scores)
+        color_sg = color_score_global(sg)
+        ar_count, ma_count = contar_ar_ma(datos.get('coeficientes'))
+        exogenas = datos.get('exogenas_nombres', [])
+        coefs = datos.get('coeficientes')
+        sigs = obtener_significancia_exogenas(coefs, exogenas)
+        sig_count = sum(1 for _, _, s in sigs if s == "Significativa")
+        with cols[i]:
+            st.markdown(f"""
+            <div style="background:{WHITE};border:1px solid {BORDER};border-radius:8px;padding:16px;">
+                <p style="font-size:14px;font-weight:700;color:{NAVY};margin:0 0 8px;">{nombre}</p>
+                <p style="font-size:24px;font-weight:700;color:{color_sg};margin:0;">{sg}/10</p>
+                <p style="font-size:10px;color:{MUTED};margin:4px 0 12px;text-transform:uppercase;">Score Global</p>
+                <div style="height:1px;background:{BORDER};margin:8px 0;"></div>
+            </div>
+            """, unsafe_allow_html=True)
+            for key, label in [('ljung_box', 'Ljung-Box'), ('jarque_bera', 'Jarque-Bera'), ('heterocedasticidad', 'Heterocedasticidad')]:
+                score, (bg, fg), p_val = scores.get(key, ('N/A', ESTADO_NEUTRAL, None))
+                st.markdown(f"""
+                <div style="background:{bg if score != 'N/A' else TINT};border-radius:4px;padding:6px 8px;margin:4px 0;text-align:center;">
+                    <p style="font-size:9px;color:{MUTED};margin:0;text-transform:uppercase;">{label}</p>
+                    <p style="font-size:16px;font-weight:700;color:{fg if score != 'N/A' else MUTED};margin:0;">{score}</p>
+                </div>
+                """, unsafe_allow_html=True)
+            st.markdown(f"""
+            <div style="height:1px;background:{BORDER};margin:8px 0;"></div>
+            <p style="font-size:11px;color:{MUTED};margin:0;">AR: <b>{ar_count}</b> | MA: <b>{ma_count}</b></p>
+            <p style="font-size:11px;color:{MUTED};margin:4px 0 0;">Exogenas sig: <b>{sig_count}/{len(exogenas)}</b></p>
+            <p style="font-size:11px;color:{MUTED};margin:4px 0 0;">Obs: <b>{datos.get('observaciones', 0)}</b></p>
+            """, unsafe_allow_html=True)
+    st.markdown(divider(), unsafe_allow_html=True)
+    st.markdown(section_title("Predicciones comparadas"), unsafe_allow_html=True)
+    fig = go.Figure()
+    colors_cycle = [BLUE, GREEN, RED, GRAY, "#8E44AD"]
+    for i, nombre in enumerate(modelos_seleccionados):
+        datos = modelos_data.get(nombre, {})
+        df_end = datos.get('fecha_endogena')
+        endogena_cols = datos.get('endogenas_cols', [])
+        if df_end is not None and not df_end.empty:
+            fecha_col = 'fecha' if 'fecha' in df_end.columns else df_end.columns[0]
+            for col in endogena_cols:
+                if col not in df_end.columns:
+                    continue
+                col_str = str(col).upper()
+                if col_str == 'BASE':
+                    fig.add_trace(go.Scatter(x=df_end[fecha_col], y=df_end[col], mode='lines',
+                                             name=f'{nombre} (Base)', line=dict(color=colors_cycle[i % len(colors_cycle)], width=2)))
+    fig.update_layout(title="Predicciones Base — Comparacion", xaxis_title="Fecha", yaxis_title="Valor",
+                      hovermode='x unified')
+    st.plotly_chart(aplicar_tema_plotly(fig), use_container_width=True)
+
+# =============================================================================
+# OPCIONES MODELOS (con filtros y score global)
+# =============================================================================
 def construir_opciones_modelos():
-    criterio = st.session_state.get("criterio_ordenamiento", "Pruebas aprobadas ↓")
+    criterio = st.session_state.get("criterio_ordenamiento", "Score global ↓")
     filtro_ljung = st.session_state.get("filtro_ljung", "Todos")
     filtro_jarque = st.session_state.get("filtro_jarque", "Todos")
     filtro_hetero = st.session_state.get("filtro_hetero", "Todos")
-    modelos_con_pruebas = []
+    modelos_con_datos = []
     for nombre, datos in st.session_state.modelos_data.items():
         pruebas = datos.get('pruebas')
         apr, tot = contar_pruebas_aprobadas(pruebas)
         scores = obtener_scores_modelo(pruebas)
+        score_global = calcular_score_global(scores)
         pasa_filtro = True
         if filtro_ljung != "Todos":
-            score_ljung, _ = scores.get('ljung_box', ('N/A', None))
+            score_ljung, _, _ = scores.get('ljung_box', ('N/A', None, None))
             if filtro_ljung == "A o B (Cumple)" and score_ljung not in ['A', 'B']:
                 pasa_filtro = False
             elif filtro_ljung == "A, B o C" and score_ljung not in ['A', 'B', 'C']:
@@ -722,7 +970,7 @@ def construir_opciones_modelos():
             elif filtro_ljung == "Solo A" and score_ljung != 'A':
                 pasa_filtro = False
         if filtro_jarque != "Todos":
-            score_jarque, _ = scores.get('jarque_bera', ('N/A', None))
+            score_jarque, _, _ = scores.get('jarque_bera', ('N/A', None, None))
             if filtro_jarque == "A o B (Cumple)" and score_jarque not in ['A', 'B']:
                 pasa_filtro = False
             elif filtro_jarque == "A, B o C" and score_jarque not in ['A', 'B', 'C']:
@@ -730,7 +978,7 @@ def construir_opciones_modelos():
             elif filtro_jarque == "Solo A" and score_jarque != 'A':
                 pasa_filtro = False
         if filtro_hetero != "Todos":
-            score_hetero, _ = scores.get('heterocedasticidad', ('N/A', None))
+            score_hetero, _, _ = scores.get('heterocedasticidad', ('N/A', None, None))
             if filtro_hetero == "A o B (Cumple)" and score_hetero not in ['A', 'B']:
                 pasa_filtro = False
             elif filtro_hetero == "A, B o C" and score_hetero not in ['A', 'B', 'C']:
@@ -738,26 +986,34 @@ def construir_opciones_modelos():
             elif filtro_hetero == "Solo A" and score_hetero != 'A':
                 pasa_filtro = False
         if pasa_filtro:
-            modelos_con_pruebas.append((nombre, apr, tot, scores))
+            modelos_con_datos.append((nombre, apr, tot, scores, score_global))
     if criterio == "Nombre (A-Z)":
-        modelos_con_pruebas.sort(key=lambda x: x[0])
+        modelos_con_datos.sort(key=lambda x: x[0])
+    elif criterio == "Score global ↓":
+        modelos_con_datos.sort(key=lambda x: (-x[4], x[0]))
+    elif criterio == "Score global ↑":
+        modelos_con_datos.sort(key=lambda x: (x[4], x[0]))
     elif criterio == "Pruebas aprobadas ↓":
-        modelos_con_pruebas.sort(key=lambda x: (-x[1], x[0]))
+        modelos_con_datos.sort(key=lambda x: (-x[1], x[0]))
     else:
-        modelos_con_pruebas.sort(key=lambda x: (x[1], x[0]))
-    modelos_list = [m[0] for m in modelos_con_pruebas]
-    pruebas_dict = {m[0]: (m[1], m[2]) for m in modelos_con_pruebas}
-    scores_dict = {m[0]: m[3] for m in modelos_con_pruebas}
-    return modelos_list, pruebas_dict, scores_dict
+        modelos_con_datos.sort(key=lambda x: (x[1], x[0]))
+    modelos_list = [m[0] for m in modelos_con_datos]
+    pruebas_dict = {m[0]: (m[1], m[2]) for m in modelos_con_datos}
+    scores_dict = {m[0]: m[3] for m in modelos_con_datos}
+    score_global_dict = {m[0]: m[4] for m in modelos_con_datos}
+    return modelos_list, pruebas_dict, scores_dict, score_global_dict
 
-def label_modelo(nombre, pruebas_dict, scores_dict=None):
+def label_modelo(nombre, pruebas_dict, scores_dict=None, score_global_dict=None):
     apr, tot = pruebas_dict.get(nombre, (0, 3))
     label = f"{nombre}  ({apr}/{tot})"
-    if scores_dict and nombre in scores_dict:
+    if score_global_dict and nombre in score_global_dict:
+        sg = score_global_dict[nombre]
+        label += f"  [{sg}/10]"
+    elif scores_dict and nombre in scores_dict:
         scores = scores_dict[nombre]
         mini_scores = []
         for key in ['ljung_box', 'jarque_bera', 'heterocedasticidad']:
-            score, _ = scores.get(key, ('N/A', None))
+            score, _, _ = scores.get(key, ('N/A', None, None))
             if score != 'N/A':
                 mini_scores.append(score)
         if mini_scores:
@@ -769,19 +1025,48 @@ def label_modelo(nombre, pruebas_dict, scores_dict=None):
 # =============================================================================
 for key, default in [
     ("uploaded_file", None), ("modelos_data", {}), ("meta_contexto", None),
-    ("modelo_seleccionado", None), ("criterio_ordenamiento", "Pruebas aprobadas ↓"),
+    ("modelo_seleccionado", None), ("criterio_ordenamiento", "Score global ↓"),
     ("exog_sel", {}), ("pred_filtro", "Todas"), ("nav_sticky", True),
     ("pending_modelo", None),
     ("filtro_ljung", "Todos"), ("filtro_jarque", "Todos"), ("filtro_hetero", "Todos"),
+    ("ver_resumen", True), ("modelos_comparar", []),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
+
+# =============================================================================
+# ATAJOS DE TECLADO (JavaScript)
+# =============================================================================
+def inject_keyboard_shortcuts():
+    shortcuts_html = """
+    <script>
+    document.addEventListener('keydown', function(e) {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        if (e.key === 'ArrowLeft') {
+            const btn = document.querySelector('button[kind="secondary"][data-testid="baseButton-secondary"]');
+            const buttons = Array.from(document.querySelectorAll('button'));
+            const prevBtn = buttons.find(b => b.textContent.includes('Anterior'));
+            if (prevBtn && !prevBtn.disabled) { prevBtn.click(); e.preventDefault(); }
+        }
+        if (e.key === 'ArrowRight') {
+            const buttons = Array.from(document.querySelectorAll('button'));
+            const nextBtn = buttons.find(b => b.textContent.includes('Siguiente'));
+            if (nextBtn && !nextBtn.disabled) { nextBtn.click(); e.preventDefault(); }
+        }
+        if (e.key === 'Escape') {
+            window.parent.postMessage({type: 'streamlit:setComponentValue', value: 'clear_filters'}, '*');
+        }
+    });
+    </script>
+    """
+    st.components.v1.html(shortcuts_html, height=0)
 
 # =============================================================================
 # APP
 # =============================================================================
 st.set_page_config(page_title="Dashboard SARIMAX", layout="wide")
 inject_css()
+inject_keyboard_shortcuts()
 
 col_left, col_right = st.columns([1, 4])
 
@@ -799,6 +1084,7 @@ with col_left:
                 st.session_state.meta_contexto = leer_meta_embebida(uploaded)
                 st.session_state.last_file_name = uploaded.name
             st.success(f"Archivo cargado: {uploaded.name}")
+            st.session_state.ver_resumen = True
             if st.session_state.modelo_seleccionado is None or st.session_state.modelo_seleccionado not in st.session_state.modelos_data:
                 st.session_state.modelo_seleccionado = list(st.session_state.modelos_data.keys())[0]
     if st.session_state.uploaded_file is not None:
@@ -809,6 +1095,8 @@ with col_left:
             st.session_state.modelo_seleccionado = None
             st.session_state.last_file_name = None
             st.session_state.exog_sel = {}
+            st.session_state.ver_resumen = True
+            st.session_state.modelos_comparar = []
             st.rerun()
     if st.session_state.modelos_data:
         st.markdown(divider(), unsafe_allow_html=True)
@@ -835,30 +1123,30 @@ with col_left:
         else:
             st.caption("Sin metadata embebida.")
         st.markdown(divider(), unsafe_allow_html=True)
-        criterio = st.radio("Ordenar por:", ["Nombre (A-Z)", "Pruebas aprobadas ↓", "Pruebas aprobadas ↑"],
+        criterio = st.radio("Ordenar por:", ["Nombre (A-Z)", "Score global ↓", "Score global ↑", "Pruebas aprobadas ↓", "Pruebas aprobadas ↑"],
                             index=1, key="criterio_orden")
         st.session_state.criterio_ordenamiento = criterio
         # --- FILTROS DE DIAGNOSTICO ---
         st.markdown(section_title("Filtros de Diagnostico"), unsafe_allow_html=True)
         st.markdown(f"<p style='font-size:10px;color:{MUTED};margin:0 0 4px;'>Ljung-Box</p>", unsafe_allow_html=True)
-        filtro_ljung = st.selectbox("", ["Todos", "A o B (Cumple)", "A, B o C", "Solo A"], 
+        filtro_ljung = st.selectbox("", ["Todos", "A o B (Cumple)", "A, B o C", "Solo A"],
                                      index=0, key="filtro_ljung_sel", label_visibility="collapsed")
         st.session_state.filtro_ljung = filtro_ljung
         st.markdown(f"<p style='font-size:10px;color:{MUTED};margin:8px 0 4px;'>Jarque-Bera</p>", unsafe_allow_html=True)
-        filtro_jarque = st.selectbox("", ["Todos", "A o B (Cumple)", "A, B o C", "Solo A"], 
+        filtro_jarque = st.selectbox("", ["Todos", "A o B (Cumple)", "A, B o C", "Solo A"],
                                       index=0, key="filtro_jarque_sel", label_visibility="collapsed")
         st.session_state.filtro_jarque = filtro_jarque
         st.markdown(f"<p style='font-size:10px;color:{MUTED};margin:8px 0 4px;'>Heterocedasticidad</p>", unsafe_allow_html=True)
-        filtro_hetero = st.selectbox("", ["Todos", "A o B (Cumple)", "A, B o C", "Solo A"], 
+        filtro_hetero = st.selectbox("", ["Todos", "A o B (Cumple)", "A, B o C", "Solo A"],
                                       index=0, key="filtro_hetero_sel", label_visibility="collapsed")
         st.session_state.filtro_hetero = filtro_hetero
         st.markdown(divider(), unsafe_allow_html=True)
-        modelos_list, pruebas_dict, scores_dict = construir_opciones_modelos()
+        modelos_list, pruebas_dict, scores_dict, score_global_dict = construir_opciones_modelos()
         if st.session_state.pending_modelo is not None and st.session_state.pending_modelo in modelos_list:
             st.session_state.modelo_seleccionado = st.session_state.pending_modelo
-            st.session_state["sel_modelo"] = label_modelo(st.session_state.pending_modelo, pruebas_dict, scores_dict)
+            st.session_state["sel_modelo"] = label_modelo(st.session_state.pending_modelo, pruebas_dict, scores_dict, score_global_dict)
             st.session_state.pending_modelo = None
-        opciones = [label_modelo(m, pruebas_dict, scores_dict) for m in modelos_list]
+        opciones = [label_modelo(m, pruebas_dict, scores_dict, score_global_dict) for m in modelos_list]
         if not modelos_list:
             st.warning("Ningun modelo cumple con los filtros seleccionados.")
             st.session_state.modelo_seleccionado = None
@@ -869,10 +1157,24 @@ with col_left:
         st.markdown(divider(), unsafe_allow_html=True)
         st.toggle("Fijar flechas de navegacion", key="nav_sticky",
                   help="Mantiene los botones Anterior/Siguiente siempre visibles, flotando sobre la pagina al hacer scroll.")
+        st.markdown(divider(), unsafe_allow_html=True)
+        st.markdown(section_title("Vistas"), unsafe_allow_html=True)
+        if st.button("Ver resumen ejecutivo", use_container_width=True, key="btn_resumen"):
+            st.session_state.ver_resumen = True
+            st.rerun()
+        if st.button("Explorar modelos", use_container_width=True, key="btn_explorar"):
+            st.session_state.ver_resumen = False
+            st.rerun()
         if st.session_state.modelo_seleccionado:
             datos = st.session_state.modelos_data.get(st.session_state.modelo_seleccionado, {})
+            st.markdown(divider(), unsafe_allow_html=True)
             st.markdown(f"<p style='font-size:11px;font-weight:600;color:{NAVY};margin:12px 0 4px;'>MODELO ACTUAL</p>", unsafe_allow_html=True)
             st.markdown(f"<p style='font-size:14px;font-weight:700;color:{NAVY};margin:0;'>{st.session_state.modelo_seleccionado}</p>", unsafe_allow_html=True)
+            pruebas = datos.get('pruebas')
+            scores = obtener_scores_modelo(pruebas)
+            sg = calcular_score_global(scores)
+            color_sg = color_score_global(sg)
+            st.markdown(f"<p style='font-size:13px;font-weight:700;color:{color_sg};margin:4px 0 0;'>{sg}/10</p>", unsafe_allow_html=True)
             st.markdown(f"<p style='font-size:11px;color:{MUTED};margin:4px 0 0;'>{datos.get('observaciones', 0)} observaciones</p>", unsafe_allow_html=True)
             exogenas = datos.get('exogenas_nombres', [])
             if exogenas:
@@ -898,6 +1200,24 @@ with col_right:
             <p style="font-size:13px;color:{MUTED};margin:0;">Suba un archivo Excel para comenzar el analisis.</p>
         </div>
         """, unsafe_allow_html=True)
+    elif st.session_state.ver_resumen:
+        # --- RESUMEN EJECUTIVO ---
+        resumen = calcular_resumen_corrida(st.session_state.modelos_data)
+        render_resumen_ejecutivo(resumen)
+        st.markdown(divider(), unsafe_allow_html=True)
+        st.markdown(section_title("Acciones"), unsafe_allow_html=True)
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Ir al primer modelo", use_container_width=True, key="btn_primer_modelo"):
+                modelos_list, _, _, _ = construir_opciones_modelos()
+                if modelos_list:
+                    st.session_state.modelo_seleccionado = modelos_list[0]
+                    st.session_state.ver_resumen = False
+                    st.rerun()
+        with c2:
+            if st.button("Ir al Comparador", use_container_width=True, key="btn_ir_comparador"):
+                st.session_state.ver_resumen = False
+                st.rerun()
     elif st.session_state.modelo_seleccionado is None:
         st.markdown(f"""
         <div style="background:{WHITE};border:1px solid {BORDER};border-radius:10px;padding:60px 32px;text-align:center;margin-top:40px;">
@@ -910,6 +1230,10 @@ with col_right:
         meta_kpis = extraer_kpis_meta(st.session_state.meta_contexto)
         pais = meta_kpis.get('pais', '—')
         cartera = meta_kpis.get('cartera', '—')
+        pruebas = datos.get('pruebas')
+        scores = obtener_scores_modelo(pruebas)
+        score_global = calcular_score_global(scores)
+        color_sg = color_score_global(score_global)
         st.markdown(f"""
         <div style="display:flex;align-items:flex-end;gap:16px;margin-bottom:4px;">
             <div style="flex:1;">
@@ -918,14 +1242,15 @@ with col_right:
             </div>
             <div style="text-align:right;">
                 <p style="font-size:11px;color:{MUTED};margin:0;">{pais} · {cartera}</p>
+                <p style="font-size:24px;font-weight:700;color:{color_sg};margin:2px 0 0;">{score_global}/10</p>
                 <p style="font-size:11px;color:{LTGRAY};margin:2px 0 0;">{len(st.session_state.modelos_data)} modelos cargados</p>
             </div>
         </div>
         <div style="height:1px;background:{BORDER};margin:12px 0 16px;"></div>
         """, unsafe_allow_html=True)
-        modelos_list, pruebas_dict_nav, scores_dict_nav = construir_opciones_modelos()
+        modelos_list, pruebas_dict_nav, scores_dict_nav, score_global_dict_nav = construir_opciones_modelos()
         current_idx = modelos_list.index(st.session_state.modelo_seleccionado) if st.session_state.modelo_seleccionado in modelos_list else 0
-        tab1, tab2, tab3 = st.tabs(["Visualizacion", "Predicciones", "Diagnosticos"])
+        tab1, tab2, tab3, tab4 = st.tabs(["Visualizacion", "Predicciones", "Diagnosticos", "Comparar"])
         # =====================================================================
         # TAB 1: VISUALIZACION
         # =====================================================================
@@ -1109,7 +1434,6 @@ with col_right:
                 else:
                     styler = styler.applymap(color_pval, subset=['P-valor'])
                 st.dataframe(styler, use_container_width=True, hide_index=True)
-                # --- Conteo de AR y MA ---
                 ar_count, ma_count = contar_ar_ma(coefs)
                 st.markdown(divider(), unsafe_allow_html=True)
                 st.markdown(section_title("Estructura del modelo"), unsafe_allow_html=True)
@@ -1120,6 +1444,21 @@ with col_right:
                     st.markdown(card_metric("Terminos MA", str(ma_count), BLUE), unsafe_allow_html=True)
             else:
                 st.info("No hay datos de coeficientes.")
+        # =====================================================================
+        # TAB 4: COMPARAR
+        # =====================================================================
+        with tab4:
+            st.markdown(section_title("Seleccionar modelos para comparar"), unsafe_allow_html=True)
+            st.markdown(f"<p style='font-size:11px;color:{MUTED};margin:0 0 12px;'>Seleccione de 2 a 3 modelos. Use Ctrl+Click para seleccion multiple.</p>", unsafe_allow_html=True)
+            todos_modelos = list(st.session_state.modelos_data.keys())
+            seleccionados = st.multiselect("Modelos", todos_modelos, default=st.session_state.modelos_comparar[:3], max_selections=3, key="multiselect_comparar")
+            st.session_state.modelos_comparar = seleccionados
+            if st.button("Comparar seleccionados", use_container_width=True, key="btn_comparar"):
+                st.session_state.modelos_comparar = seleccionados
+            if st.session_state.modelos_comparar and len(st.session_state.modelos_comparar) >= 2:
+                render_comparador(st.session_state.modelos_data, st.session_state.modelos_comparar)
+            else:
+                st.info("Seleccione al menos 2 modelos y presione 'Comparar seleccionados'.")
         # --- Bottom nav bar ---
         nav_sticky = st.session_state.get("nav_sticky", True)
         if nav_sticky:
@@ -1152,15 +1491,12 @@ with col_right:
                     st.session_state.pending_modelo = modelos_list[current_idx - 1]
                     st.rerun()
             with nav_cols[1]:
-                st.markdown(
-                    f"""
-                    <div style="text-align:center;padding:6px 4px;">
-                        <p style="font-size:10px;color:{MUTED};margin:0;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Modelo {current_idx + 1} de {len(modelos_list)}</p>
-                        <p style="font-size:13px;color:{NAVY};font-weight:700;margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{st.session_state.modelo_seleccionado}</p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
+                st.markdown(f"""
+                <div style="text-align:center;padding:6px 4px;">
+                    <p style="font-size:10px;color:{MUTED};margin:0;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Modelo {current_idx + 1} de {len(modelos_list)}</p>
+                    <p style="font-size:13px;color:{NAVY};font-weight:700;margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{st.session_state.modelo_seleccionado}</p>
+                </div>
+                """, unsafe_allow_html=True)
             with nav_cols[2]:
                 if st.button("Siguiente →", disabled=current_idx == len(modelos_list) - 1, key="btn_next_real", use_container_width=True):
                     st.session_state.pending_modelo = modelos_list[current_idx + 1]
