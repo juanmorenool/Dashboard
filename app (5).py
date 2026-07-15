@@ -956,6 +956,43 @@ def render_resumen_ejecutivo():
         st.session_state.vista_resumen = False
         st.rerun()
 
+def render_seccion_coeficientes(datos, key_prefix="diag"):
+    st.markdown(section_title("Coeficientes del modelo"), unsafe_allow_html=True)
+    coefs = datos.get('coeficientes')
+    if coefs is not None and not coefs.empty:
+        df_coef = coefs.copy()
+        df_coef['Tipo'] = df_coef['Variable'].apply(clasificar_variable)
+        if 'P_value' in df_coef.columns:
+            def fmt_pval(x):
+                if pd.isna(x): return "N/A"
+                try:
+                    xv = float(x)
+                    return f"{xv:.4e}" if xv < 0.001 else f"{xv:.4f}"
+                except: return str(x)
+            df_coef['P-valor'] = df_coef['P_value'].apply(fmt_pval)
+        df_display = df_coef[['Tipo', 'Variable', 'Coeficiente', 'P-valor']]
+        st.plotly_chart(fig_barras_coeficientes(df_coef), use_container_width=True, key=f"{key_prefix}_coef_bar")
+        def color_pval(v):
+            try: return f"color: {GREEN}; font-weight: 700;" if float(v) < 0.05 else f"color: {RED};"
+            except: return ""
+        styler = df_display.style
+        if hasattr(styler, "map"):
+            styler = styler.map(color_pval, subset=['P-valor'])
+        else:
+            styler = styler.applymap(color_pval, subset=['P-valor'])
+        st.dataframe(styler, use_container_width=True, hide_index=True, key=f"{key_prefix}_coef_tabla")
+        # --- Conteo de AR y MA ---
+        ar_count, ma_count = contar_ar_ma(coefs)
+        st.markdown(divider(), unsafe_allow_html=True)
+        st.markdown(section_title("Estructura del modelo"), unsafe_allow_html=True)
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown(card_metric("Terminos AR", str(ar_count), BLUE), unsafe_allow_html=True)
+        with c2:
+            st.markdown(card_metric("Terminos MA", str(ma_count), BLUE), unsafe_allow_html=True)
+    else:
+        st.info("No hay datos de coeficientes.")
+
 # =============================================================================
 # SESSION STATE
 # =============================================================================
@@ -1198,7 +1235,21 @@ with col_right:
             st.rerun()
         modelos_list, pruebas_dict_nav, scores_dict_nav, global_dict_nav = construir_opciones_modelos()
         current_idx = modelos_list.index(st.session_state.modelo_seleccionado) if st.session_state.modelo_seleccionado in modelos_list else 0
-        tab1, tab2, tab3, tab4 = st.tabs(["Visualizacion", "Predicciones", "Diagnosticos", "Comparar"])
+        tab_resumen, tab1, tab2, tab3, tab4 = st.tabs(["Resumen Modelo", "Visualizacion", "Predicciones", "Diagnosticos", "Comparar"])
+        # =====================================================================
+        # TAB 0: RESUMEN MODELO
+        # =====================================================================
+        with tab_resumen:
+            st.markdown(section_title("Factor FWL a 12 meses"), unsafe_allow_html=True)
+            df_fwl_resumen = datos.get('fwl_12m')
+            if df_fwl_resumen is not None and not df_fwl_resumen.empty:
+                st.plotly_chart(fig_fwl_12m(df_fwl_resumen), use_container_width=True, key="resumen_fwl12m")
+            else:
+                st.info("No hay datos de FWL a 12 meses.")
+            st.markdown(divider(), unsafe_allow_html=True)
+            render_diagnosticos_corporativo(datos.get('pruebas'))
+            st.markdown(divider(), unsafe_allow_html=True)
+            render_seccion_coeficientes(datos, key_prefix="resumen")
         # =====================================================================
         # TAB 1: VISUALIZACION
         # =====================================================================
@@ -1252,7 +1303,7 @@ with col_right:
             st.markdown(section_title("Factor FWL a 12 meses"), unsafe_allow_html=True)
             df_fwl = datos.get('fwl_12m')
             if df_fwl is not None and not df_fwl.empty:
-                st.plotly_chart(fig_fwl_12m(df_fwl), use_container_width=True)
+                st.plotly_chart(fig_fwl_12m(df_fwl), use_container_width=True, key="viz_fwl12m")
             else:
                 st.info("No hay datos de FWL a 12 meses.")
             st.markdown(divider(), unsafe_allow_html=True)
@@ -1358,41 +1409,7 @@ with col_right:
             else:
                 st.info("No hay datos de residuos.")
             st.markdown(divider(), unsafe_allow_html=True)
-            st.markdown(section_title("Coeficientes del modelo"), unsafe_allow_html=True)
-            coefs = datos.get('coeficientes')
-            if coefs is not None and not coefs.empty:
-                df_coef = coefs.copy()
-                df_coef['Tipo'] = df_coef['Variable'].apply(clasificar_variable)
-                if 'P_value' in df_coef.columns:
-                    def fmt_pval(x):
-                        if pd.isna(x): return "N/A"
-                        try:
-                            xv = float(x)
-                            return f"{xv:.4e}" if xv < 0.001 else f"{xv:.4f}"
-                        except: return str(x)
-                    df_coef['P-valor'] = df_coef['P_value'].apply(fmt_pval)
-                df_display = df_coef[['Tipo', 'Variable', 'Coeficiente', 'P-valor']]
-                st.plotly_chart(fig_barras_coeficientes(df_coef), use_container_width=True)
-                def color_pval(v):
-                    try: return f"color: {GREEN}; font-weight: 700;" if float(v) < 0.05 else f"color: {RED};"
-                    except: return ""
-                styler = df_display.style
-                if hasattr(styler, "map"):
-                    styler = styler.map(color_pval, subset=['P-valor'])
-                else:
-                    styler = styler.applymap(color_pval, subset=['P-valor'])
-                st.dataframe(styler, use_container_width=True, hide_index=True)
-                # --- Conteo de AR y MA ---
-                ar_count, ma_count = contar_ar_ma(coefs)
-                st.markdown(divider(), unsafe_allow_html=True)
-                st.markdown(section_title("Estructura del modelo"), unsafe_allow_html=True)
-                c1, c2 = st.columns(2)
-                with c1:
-                    st.markdown(card_metric("Terminos AR", str(ar_count), BLUE), unsafe_allow_html=True)
-                with c2:
-                    st.markdown(card_metric("Terminos MA", str(ma_count), BLUE), unsafe_allow_html=True)
-            else:
-                st.info("No hay datos de coeficientes.")
+            render_seccion_coeficientes(datos, key_prefix="diag")
         # =====================================================================
         # TAB 4: COMPARAR
         # =====================================================================
