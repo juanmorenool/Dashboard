@@ -1068,7 +1068,8 @@ with col_right:
                 if st.button("← Anterior", disabled=current_idx == 0, key="btn_prev_real", use_container_width=True):
                     nuevo = modelos_list[current_idx - 1]
                     st.session_state.modelo_seleccionado = nuevo
-                    st.session_state.sel_modelo = label_modelo(nuevo, pruebas_dict_nav)
+                    if "sel_modelo" in st.session_state:
+                        del st.session_state.sel_modelo
                     st.rerun()
             with nav_cols[1]:
                 st.markdown(f"""
@@ -1081,5 +1082,6 @@ with col_right:
                 if st.button("Siguiente →", disabled=current_idx == len(modelos_list) - 1, key="btn_next_real", use_container_width=True):
                     nuevo = modelos_list[current_idx + 1]
                     st.session_state.modelo_seleccionado = nuevo
-                    st.session_state.sel_modelo = label_modelo(nuevo, pruebas_dict_nav)
+                    if "sel_modelo" in st.session_state:
+                        del st.session_state.sel_modelo
                     st.rerun()
