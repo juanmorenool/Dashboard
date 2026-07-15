@@ -44,6 +44,10 @@ PAISES_MAP = {
     'panama': 'Panamá',
     'panamá': 'Panamá',
     'costa rica': 'Costa Rica',
+    # --- códigos cortos que vienen en la metadata embebida ---
+    'co': 'Colombia',
+    'pa': 'Panamá',
+    'cr': 'Costa Rica',
 }
 
 # --- Codigos ISO 3166-1 alpha-2 para renderizar banderas (via flagcdn.com) ---
@@ -51,19 +55,31 @@ BANDERAS_PAISES = {
     'Colombia': 'co',
     'Panamá': 'pa',
     'Costa Rica': 'cr',
+    # --- fallback por si llega el código crudo sin normalizar ---
+    'co': 'co',
+    'pa': 'pa',
+    'cr': 'cr',
+    'CO': 'co',
+    'PA': 'pa',
+    'CR': 'cr',
 }
 
 def obtener_bandera_pais(pais, ancho=20):
-    """Devuelve el tag <img> con la bandera del pais dado (nombre normalizado, ej. 'Colombia').
-    Si el pais no esta mapeado, devuelve cadena vacia."""
+    """Devuelve el tag <img> con la bandera del pais dado.
+    Acepta nombre completo (ej. 'Colombia') o código ISO (ej. 'CO', 'co')."""
     if not pais:
         return ""
-    codigo = BANDERAS_PAISES.get(str(pais).strip())
+    pais_str = str(pais).strip()
+    # Primero intenta por nombre completo; si falla, usa el código directo
+    codigo = BANDERAS_PAISES.get(pais_str)
+    if not codigo:
+        # Último fallback: intentar con el valor en minúsculas
+        codigo = BANDERAS_PAISES.get(pais_str.lower())
     if not codigo:
         return ""
     return (f'<img src="https://flagcdn.com/w40/{codigo}.png" width="{ancho}" '
             f'style="vertical-align:middle;border-radius:2px;margin-right:6px;box-shadow:0 0 0 1px {BORDER};" '
-            f'alt="{pais}">')
+            f'alt="{pais_str}">')
 
 CARTERAS_MAP = {
     'vivi': 'Vivienda', 'vivienda': 'Vivienda',
