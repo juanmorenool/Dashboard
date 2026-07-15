@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -192,58 +193,129 @@ def section_divider():
 
 
 # =============================================================================
-# NAVEGACIÓN ENTRE MODELOS (FLECHAS)
+# NAV FIJO (FLECHAS) QUE SÍ FUNCIONA EN STREAMLIT COMMUNITY CLOUD
 # =============================================================================
-# La navegación se implementa de forma robusta sin manipulación de DOM.
-# Se usa un enfoque basado en session_state para evitar problemas con
-# eventos de click y z-index.
+# `position: sticky` no funciona porque los contenedores padre de Streamlit
+# tienen su propio `overflow`, que rompe el contexto de sticky.
+# `position: fixed` a secas tampoco funciona porque no sabemos de antemano
+# las coordenadas (left/width) del panel derecho: dependen del ancho del
+# sidebar, que el usuario puede colapsar.
+#
+# La solución: usamos st.container(key=...) para tener una clase CSS estable
+# (.st-key-<key>) y un pequeño script que, desde el iframe del componente,
+# accede a window.parent.document (permitido: mismo origen) para MEDIR en
+# tiempo real dónde está el panel de contenido y fijar el nav con esas
+# coordenadas exactas. También insertamos un "spacer" para que el contenido
+# no salte al volverse `fixed`.
 
-_NAV_KEY = "sarimax_nav"
+_STICKY_NAV_KEY = "sarimax_sticky_nav"
 
 
-def render_nav_buttons(modelo_actual, current_idx, total, disabled_prev, disabled_next, sticky=False):
+def render_nav_fijo(modelo_actual, current_idx, total, disabled_prev, disabled_next):
     """
-    Renderiza las flechas de navegación.
-    Si sticky=True, usa un estilo CSS sticky nativo (soportado por Streamlit)
-    mediante un contenedor con key estable.
+    Renderiza las flechas de navegación en un contenedor que queda
+    verdaderamente fijo (fixed) en pantalla al hacer scroll.
+    Solo los botones son visibles (sin fondo ancho).
     Devuelve (prev_clicked, next_clicked).
     """
-    # Usar keys únicas para evitar colisiones entre modos sticky/no-sticky
-    key_suffix = "_sticky" if sticky else "_inline"
-
-    nav = st.container(key=_NAV_KEY if sticky else None)
+    nav = st.container(key=_STICKY_NAV_KEY)
     with nav:
-        # Si es sticky, aplicamos CSS para posicionamiento fijo
-        if sticky:
-            st.markdown("""
-            <style>
-            .st-key-sarimax_nav {
-                position: sticky;
-                top: 0;
-                z-index: 1000;
-                background: rgba(245, 246, 248, 0.95);
-                backdrop-filter: blur(8px);
-                padding: 8px 0;
-                border-bottom: 1px solid #E3E6EA;
-            }
-            </style>
-            """, unsafe_allow_html=True)
-
         cols_nav = st.columns([1, 1, 8, 2])
         with cols_nav[0]:
             prev_clicked = st.button(
-                "← Anterior", disabled=disabled_prev, key=f"btn_prev{key_suffix}",
+                "← Anterior", disabled=disabled_prev, key="btn_prev",
                 use_container_width=True
             )
         with cols_nav[1]:
             next_clicked = st.button(
-                "Siguiente →", disabled=disabled_next, key=f"btn_next{key_suffix}",
+                "Siguiente →", disabled=disabled_next, key="btn_next",
                 use_container_width=True
             )
         with cols_nav[2]:
             st.markdown(f"**{modelo_actual}** ({current_idx + 1}/{total})")
         with cols_nav[3]:
             pass
+
+    # Script que fija el contenedor con estilo mínimo (solo botones visibles)
+    components.html(f"""
+    <script>
+    (function() {{
+        const doc = window.parent.document;
+
+        function aplicarFijado() {{
+            const nav = doc.querySelector(".st-key-{_STICKY_NAV_KEY}");
+            if (!nav) return false;
+
+            const header = doc.querySelector('header[data-testid="stHeader"]');
+            const headerH = header ? header.offsetHeight : 0;
+
+            // Encontrar el wrapper del contenedor para hacerlo fixed
+            // El contenedor de Streamlit tiene estructura: .st-key-xxx > div > div
+            let wrapper = nav.closest('.element-container');
+            if (!wrapper) wrapper = nav.parentElement;
+
+            const yaFijado = wrapper.dataset.stickyFijado === "1";
+
+            if (!yaFijado) {{
+                // Guardar altura original para el spacer
+                const altoOriginal = nav.offsetHeight;
+                wrapper.dataset.altoOriginal = altoOriginal;
+
+                // Crear spacer antes de modificar el wrapper
+                let spacer = wrapper.previousElementSibling;
+                if (!spacer || !spacer.classList.contains('sticky-nav-spacer')) {{
+                    spacer = doc.createElement("div");
+                    spacer.className = "sticky-nav-spacer";
+                    spacer.style.height = altoOriginal + "px";
+                    wrapper.parentNode.insertBefore(spacer, wrapper);
+                }}
+            }}
+
+            // Aplicar estilo fixed al wrapper (no al nav interno)
+            wrapper.style.position = "fixed";
+            wrapper.style.top = headerH + "px";
+            wrapper.style.left = "0";
+            wrapper.style.width = "100%";
+            wrapper.style.zIndex = "999999";
+            wrapper.style.background = "transparent";
+            wrapper.style.padding = "0";
+            wrapper.style.border = "none";
+            wrapper.style.boxShadow = "none";
+            wrapper.style.boxSizing = "border-box";
+            wrapper.style.pointerEvents = "none";  /* Dejar pasar clicks al contenido debajo */
+
+            // El nav interno SÍ recibe clicks - estilo minimalista
+            nav.style.pointerEvents = "auto";
+            nav.style.background = "rgba(255, 255, 255, 0.0)";  /* TOTALMENTE transparente */
+            nav.style.backdropFilter = "none";
+            nav.style.padding = "4px 0";
+            nav.style.borderBottom = "none";
+            nav.style.maxWidth = "500px";  /* Solo el ancho de los botones */
+            nav.style.margin = "0";        /* Alinear a la izquierda */
+            nav.style.borderRadius = "0";
+
+            // Ocultar el fondo del contenedor de columnas de Streamlit
+            const colContainer = nav.querySelector('[data-testid="stHorizontalBlock"]');
+            if (colContainer) {{
+                colContainer.style.background = "transparent";
+                colContainer.style.boxShadow = "none";
+            }}
+
+            wrapper.dataset.stickyFijado = "1";
+            return true;
+        }}
+
+        let intentos = 0;
+        const timer = setInterval(function() {{
+            const ok = aplicarFijado();
+            intentos++;
+            if (intentos > 15) clearInterval(timer);
+        }}, 150);
+
+        window.addEventListener("resize", aplicarFijado);
+    }})();
+    </script>
+    """, height=0)
 
     return prev_clicked, next_clicked
 
@@ -261,6 +333,8 @@ if "ordenar_por_pruebas" not in st.session_state:
     st.session_state.ordenar_por_pruebas = False
 if "mostrar_significancia" not in st.session_state:
     st.session_state.mostrar_significancia = False
+if "mostrar_flechas" not in st.session_state:
+    st.session_state.mostrar_flechas = False
 if "criterio_ordenamiento" not in st.session_state:
     st.session_state.criterio_ordenamiento = "Nombre (A-Z)"
 
@@ -732,16 +806,32 @@ with col_right:
         disabled_prev = current_idx == 0
         disabled_next = current_idx == len(modelos_list) - 1
 
-        # Renderizar flechas de navegación (sticky o inline)
-        sticky_mode = st.session_state.get("flechas_sticky", False)
-        prev_clicked, next_clicked = render_nav_buttons(
-            st.session_state.modelo_seleccionado,
-            current_idx,
-            len(modelos_list),
-            disabled_prev,
-            disabled_next,
-            sticky=sticky_mode,
-        )
+        # Si sticky está activado, usar render_nav_fijo (con JS)
+        # Si no, renderizar flechas normales
+        if st.session_state.get("flechas_sticky", False):
+            prev_clicked, next_clicked = render_nav_fijo(
+                st.session_state.modelo_seleccionado,
+                current_idx,
+                len(modelos_list),
+                disabled_prev,
+                disabled_next,
+            )
+        else:
+            cols_nav = st.columns([1, 1, 8, 2])
+            with cols_nav[0]:
+                prev_clicked = st.button(
+                    "← Anterior", disabled=disabled_prev, key="btn_prev",
+                    use_container_width=True
+                )
+            with cols_nav[1]:
+                next_clicked = st.button(
+                    "Siguiente →", disabled=disabled_next, key="btn_next",
+                    use_container_width=True
+                )
+            with cols_nav[2]:
+                st.markdown(f"**{st.session_state.modelo_seleccionado}** ({current_idx + 1}/{len(modelos_list)})")
+            with cols_nav[3]:
+                pass
 
         if prev_clicked:
             st.session_state.modelo_seleccionado = modelos_list[current_idx - 1]
@@ -849,11 +939,11 @@ with col_right:
                             elif 'optimista' in c_str:
                                 rename_map[c] = 'Optimista'
                         df_pivot = df_pivot.rename(columns=rename_map)
-                        st.dataframe(df_pivot, use_container_width=True)
+                        st.dataframe(df_pivot, width="stretch")
                     except:
-                        st.dataframe(df_fwl_anual, use_container_width=True)
+                        st.dataframe(df_fwl_anual, width="stretch")
                 else:
-                    st.dataframe(df_fwl_anual, use_container_width=True)
+                    st.dataframe(df_fwl_anual, width="stretch")
             else:
                 st.info("No hay datos de Factor FWL por Año para este modelo.")
 
@@ -1012,7 +1102,7 @@ with col_right:
                 if opt_col and opt_col in df_end.columns:
                     df_pred['Optimista'] = df_end[opt_col].astype(float).round(4)
 
-                st.dataframe(df_pred, use_container_width=True, height=400)
+                st.dataframe(df_pred, width="stretch", height=400)
 
                 csv = df_pred.to_csv(index=False).encode('utf-8')
                 st.download_button(
@@ -1176,7 +1266,7 @@ with col_right:
                     _styler = _styler.map(_color_pval, subset=['P-valor'])
                 else:
                     _styler = _styler.applymap(_color_pval, subset=['P-valor'])
-                st.dataframe(_styler, use_container_width=True)
+                st.dataframe(_styler, width="stretch")
             else:
                 st.info("No hay datos de coeficientes para este modelo.")
 
@@ -1217,7 +1307,7 @@ with col_right:
                     _styler_test = _styler_test.map(_color_significancia, subset=['Significancia'])
                 else:
                     _styler_test = _styler_test.applymap(_color_significancia, subset=['Significancia'])
-                st.dataframe(_styler_test, use_container_width=True)
+                st.dataframe(_styler_test, width="stretch")
             else:
                 st.info("No hay datos de pruebas estadísticas.")
     else:
