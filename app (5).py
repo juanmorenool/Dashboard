@@ -1500,7 +1500,7 @@ with col_right:
         with st.container(key="nav_flechas"):
             nav_cols = st.columns([1, 2, 1])
             with nav_cols[0]:
-                if st.button("←     ", disabled=current_idx == 0, key="btn_prev_real", use_container_width=True):
+                if st.button("←          ", disabled=current_idx == 0, key="btn_prev_real", use_container_width=True):
                     st.session_state.pending_modelo = modelos_list[current_idx - 1]
                     st.rerun()
             with nav_cols[1]:
@@ -1514,6 +1514,6 @@ with col_right:
                     unsafe_allow_html=True
                 )
             with nav_cols[2]:
-                if st.button("→     ", disabled=current_idx == len(modelos_list) - 1, key="btn_next_real", use_container_width=True):
+                if st.button("→          ", disabled=current_idx == len(modelos_list) - 1, key="btn_next_real", use_container_width=True):
                     st.session_state.pending_modelo = modelos_list[current_idx + 1]
                     st.rerun()
