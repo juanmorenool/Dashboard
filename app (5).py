@@ -46,6 +46,25 @@ PAISES_MAP = {
     'costa rica': 'Costa Rica',
 }
 
+# --- Codigos ISO 3166-1 alpha-2 para renderizar banderas (via flagcdn.com) ---
+BANDERAS_PAISES = {
+    'Colombia': 'co',
+    'Panamá': 'pa',
+    'Costa Rica': 'cr',
+}
+
+def obtener_bandera_pais(pais, ancho=20):
+    """Devuelve el tag <img> con la bandera del pais dado (nombre normalizado, ej. 'Colombia').
+    Si el pais no esta mapeado, devuelve cadena vacia."""
+    if not pais:
+        return ""
+    codigo = BANDERAS_PAISES.get(str(pais).strip())
+    if not codigo:
+        return ""
+    return (f'<img src="https://flagcdn.com/w40/{codigo}.png" width="{ancho}" '
+            f'style="vertical-align:middle;border-radius:2px;margin-right:6px;box-shadow:0 0 0 1px {BORDER};" '
+            f'alt="{pais}">')
+
 CARTERAS_MAP = {
     'vivi': 'Vivienda', 'vivienda': 'Vivienda',
     'cons': 'Consumo', 'consumo': 'Consumo',
@@ -1121,7 +1140,9 @@ with col_left:
             st.markdown(section_title("Contexto de la corrida"), unsafe_allow_html=True)
             c1, c2 = st.columns(2)
             with c1:
-                st.markdown(card_kpi("Pais", meta_kpis.get('pais', '—')), unsafe_allow_html=True)
+                bandera_html = obtener_bandera_pais(meta_kpis.get('pais'))
+                valor_pais = f"{bandera_html}{meta_kpis.get('pais', '—')}"
+                st.markdown(card_kpi("Pais", valor_pais), unsafe_allow_html=True)
             with c2:
                 st.markdown(card_kpi("Ventana media movil", meta_kpis.get('ventana_mm', '—')), unsafe_allow_html=True)
             c1, c2 = st.columns(2)
@@ -1226,7 +1247,7 @@ with col_right:
                 </p>
             </div>
             <div style="text-align:right;">
-                <p style="font-size:11px;color:{MUTED};margin:0;">{pais} · {cartera}</p>
+                <p style="font-size:11px;color:{MUTED};margin:0;">{obtener_bandera_pais(pais)}{pais} · {cartera}</p>
                 <p style="font-size:11px;color:{LTGRAY};margin:2px 0 0;">{len(st.session_state.modelos_data)} modelos cargados</p>
             </div>
         </div>
