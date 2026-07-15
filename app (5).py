@@ -686,6 +686,7 @@ for key, default in [
     ("uploaded_file", None), ("modelos_data", {}), ("meta_contexto", None),
     ("modelo_seleccionado", None), ("criterio_ordenamiento", "Pruebas aprobadas ↓"),
     ("exog_sel", {}), ("pred_filtro", "Todas"), ("nav_sticky", True),
+    ("pending_modelo", None),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -763,6 +764,16 @@ with col_left:
         st.session_state.criterio_ordenamiento = criterio
 
         modelos_list, pruebas_dict = construir_opciones_modelos()
+
+        # --- Resolver navegacion pendiente (flechas) ANTES de crear el widget ---
+        # Streamlit prohibe escribir st.session_state["sel_modelo"] una vez que
+        # el selectbox con esa key ya fue instanciado en el run actual. Por eso
+        # las flechas NUNCA tocan "sel_modelo" directamente: solo dejan un
+        # "pending_modelo" y aqui, antes de crear el widget, lo aplicamos.
+        if st.session_state.pending_modelo is not None and st.session_state.pending_modelo in modelos_list:
+            st.session_state.modelo_seleccionado = st.session_state.pending_modelo
+            st.session_state["sel_modelo"] = label_modelo(st.session_state.pending_modelo, pruebas_dict)
+            st.session_state.pending_modelo = None
 
         opciones = [label_modelo(m, pruebas_dict) for m in modelos_list]
         idx = modelos_list.index(st.session_state.modelo_seleccionado) if st.session_state.modelo_seleccionado in modelos_list else 0
@@ -1066,10 +1077,7 @@ with col_right:
             nav_cols = st.columns([1, 2, 1])
             with nav_cols[0]:
                 if st.button("← Anterior", disabled=current_idx == 0, key="btn_prev_real", use_container_width=True):
-                    nuevo = modelos_list[current_idx - 1]
-                    st.session_state.modelo_seleccionado = nuevo
-                    if "sel_modelo" in st.session_state:
-                        del st.session_state.sel_modelo
+                    st.session_state.pending_modelo = modelos_list[current_idx - 1]
                     st.rerun()
             with nav_cols[1]:
                 st.markdown(f"""
@@ -1080,8 +1088,5 @@ with col_right:
                 """, unsafe_allow_html=True)
             with nav_cols[2]:
                 if st.button("Siguiente →", disabled=current_idx == len(modelos_list) - 1, key="btn_next_real", use_container_width=True):
-                    nuevo = modelos_list[current_idx + 1]
-                    st.session_state.modelo_seleccionado = nuevo
-                    if "sel_modelo" in st.session_state:
-                        del st.session_state.sel_modelo
+                    st.session_state.pending_modelo = modelos_list[current_idx + 1]
                     st.rerun()
