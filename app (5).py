@@ -955,7 +955,7 @@ def render_resumen_ejecutivo():
     deficientes = int((con_score['Score'] < 5).sum()) if not con_score.empty else 0
     st.markdown(f"""
     <div style="margin-bottom:8px;">
-        <p style="font-size:20px;font-weight:700;color:{NAVY};margin:0;">Resumen Ejecutivo</p>
+        <p style="font-size:20px;font-weight:700;color:{NAVY};margin:0;">Resumen de la corrida</p>
         <p style="font-size:12px;color:{MUTED};margin:4px 0 0;">Vista general de los {total} modelos cargados en el archivo.</p>
     </div>
     <div style="height:1px;background:{BORDER};margin:12px 0 20px;"></div>
@@ -1156,8 +1156,10 @@ with col_left:
             st.markdown(section_title("Contexto de la corrida"), unsafe_allow_html=True)
             c1, c2 = st.columns(2)
             with c1:
-                bandera_html = obtener_bandera_pais(meta_kpis.get('pais'))
-                valor_pais = f"{bandera_html}{meta_kpis.get('pais', '—')}"
+                pais_nombre = meta_kpis.get('pais', '—')
+                codigo_iso = BANDERAS_PAISES.get(pais_nombre, pais_nombre).upper()
+                bandera_html = obtener_bandera_pais(pais_nombre)
+                valor_pais = f"{bandera_html}{codigo_iso}"
                 st.markdown(card_kpi("Pais", valor_pais), unsafe_allow_html=True)
             with c2:
                 st.markdown(card_kpi("Ventana media movil", meta_kpis.get('ventana_mm', '—')), unsafe_allow_html=True)
@@ -1253,6 +1255,7 @@ with col_right:
         meta_kpis = extraer_kpis_meta(st.session_state.meta_contexto)
         pais = meta_kpis.get('pais', '—')
         cartera = meta_kpis.get('cartera', '—')
+        pais_codigo_hdr = BANDERAS_PAISES.get(pais, pais).upper()
         score_global_hdr, _ = calcular_score_global(datos.get('pruebas'))
         st.markdown(f"""
         <div style="display:flex;align-items:flex-end;gap:16px;margin-bottom:4px;">
@@ -1263,13 +1266,13 @@ with col_right:
                 </p>
             </div>
             <div style="text-align:right;">
-                <p style="font-size:11px;color:{MUTED};margin:0;">{obtener_bandera_pais(pais)}{pais} · {cartera}</p>
+                <p style="font-size:11px;color:{MUTED};margin:0;">{obtener_bandera_pais(pais)}{pais_codigo_hdr} · {cartera}</p>
                 <p style="font-size:11px;color:{LTGRAY};margin:2px 0 0;">{len(st.session_state.modelos_data)} modelos cargados</p>
             </div>
         </div>
         <div style="height:1px;background:{BORDER};margin:12px 0 16px;"></div>
         """, unsafe_allow_html=True)
-        if st.button("Ver resumen ejecutivo", key="btn_ver_resumen"):
+        if st.button("Ver resumen de la corrida", key="btn_ver_resumen"):
             st.session_state.vista_resumen = True
             st.rerun()
         modelos_list, pruebas_dict_nav, scores_dict_nav, global_dict_nav = construir_opciones_modelos()
