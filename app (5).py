@@ -525,7 +525,7 @@ def fig_barras_coeficientes(df_coef):
     df = df.sort_values('abs', ascending=True)
     colors = [GREEN if c >= 0 else RED for c in df['Coeficiente']]
     fig = go.Figure()
-    fig.add_trace(go.Bar(y=df['Lag'], x=df['Coeficiente'], orientation='h', marker_color=colors,
+    fig.add_trace(go.Bar(y=df['Variable'], x=df['Coeficiente'], orientation='h', marker_color=colors,
                           text=df['Coeficiente'].round(4), textposition='outside'))
     fig.update_layout(title="Coeficientes del Modelo", xaxis_title="Valor", yaxis_title="Variable", showlegend=False)
     return aplicar_tema_plotly(fig)
@@ -651,13 +651,41 @@ def render_metricas_diagnostico(pruebas_df):
         st.markdown(card_metric("Heterocedasticidad (p-valor)", val, color), unsafe_allow_html=True)
 
 
+def construir_opciones_modelos():
+    """Construye la lista de modelos ordenada segun el criterio activo y el
+    diccionario de pruebas aprobadas. Es la UNICA fuente de orden: tanto el
+    selectbox del sidebar como las flechas de navegacion la usan, para que
+    nunca queden desincronizados."""
+    criterio = st.session_state.get("criterio_ordenamiento", "Pruebas aprobadas ↓")
+    modelos_con_pruebas = []
+    for nombre, datos in st.session_state.modelos_data.items():
+        apr, tot = contar_pruebas_aprobadas(datos.get('pruebas'))
+        modelos_con_pruebas.append((nombre, apr, tot))
+
+    if criterio == "Nombre (A-Z)":
+        modelos_con_pruebas.sort(key=lambda x: x[0])
+    elif criterio == "Pruebas aprobadas ↓":
+        modelos_con_pruebas.sort(key=lambda x: (-x[1], x[0]))
+    else:
+        modelos_con_pruebas.sort(key=lambda x: (x[1], x[0]))
+
+    modelos_list = [m[0] for m in modelos_con_pruebas]
+    pruebas_dict = {m[0]: (m[1], m[2]) for m in modelos_con_pruebas}
+    return modelos_list, pruebas_dict
+
+
+def label_modelo(nombre, pruebas_dict):
+    apr, tot = pruebas_dict.get(nombre, (0, 3))
+    return f"{nombre}  ({apr}/{tot})"
+
+
 # =============================================================================
 # SESSION STATE
 # =============================================================================
 for key, default in [
     ("uploaded_file", None), ("modelos_data", {}), ("meta_contexto", None),
     ("modelo_seleccionado", None), ("criterio_ordenamiento", "Pruebas aprobadas ↓"),
-    ("exog_sel", {}), ("pred_filtro", "Todas"),
+    ("exog_sel", {}), ("pred_filtro", "Todas"), ("nav_sticky", True),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -734,25 +762,16 @@ with col_left:
                             index=1, key="criterio_orden")
         st.session_state.criterio_ordenamiento = criterio
 
-        modelos_con_pruebas = []
-        for nombre, datos in st.session_state.modelos_data.items():
-            apr, tot = contar_pruebas_aprobadas(datos.get('pruebas'))
-            modelos_con_pruebas.append((nombre, apr, tot))
+        modelos_list, pruebas_dict = construir_opciones_modelos()
 
-        if criterio == "Nombre (A-Z)":
-            modelos_con_pruebas.sort(key=lambda x: x[0])
-        elif criterio == "Pruebas aprobadas ↓":
-            modelos_con_pruebas.sort(key=lambda x: (-x[1], x[0]))
-        else:
-            modelos_con_pruebas.sort(key=lambda x: (x[1], x[0]))
-
-        modelos_list = [m[0] for m in modelos_con_pruebas]
-        pruebas_dict = {m[0]: (m[1], m[2]) for m in modelos_con_pruebas}
-
-        opciones = [f"{m}  ({pruebas_dict[m][0]}/{pruebas_dict[m][1]})" for m in modelos_list]
+        opciones = [label_modelo(m, pruebas_dict) for m in modelos_list]
         idx = modelos_list.index(st.session_state.modelo_seleccionado) if st.session_state.modelo_seleccionado in modelos_list else 0
         seleccion = st.selectbox("Modelo", opciones, index=idx, key="sel_modelo")
         st.session_state.modelo_seleccionado = seleccion.split("  (")[0]
+
+        st.markdown(divider(), unsafe_allow_html=True)
+        st.toggle("Fijar flechas de navegacion", key="nav_sticky",
+                  help="Mantiene los botones Anterior/Siguiente siempre visibles, flotando sobre la pagina al hacer scroll.")
 
         datos = st.session_state.modelos_data.get(st.session_state.modelo_seleccionado, {})
         st.markdown(f"<p style='font-size:11px;font-weight:600;color:{NAVY};margin:12px 0 4px;'>MODELO ACTUAL</p>", unsafe_allow_html=True)
@@ -805,10 +824,7 @@ with col_right:
         """, unsafe_allow_html=True)
 
         # --- Navegacion (botones reales, no JS) ---
-        modelos_list = [m[0] for m in sorted(
-            [(n, contar_pruebas_aprobadas(d.get('pruebas'))[0]) for n, d in st.session_state.modelos_data.items()],
-            key=lambda x: (-x[1], x[0]) if st.session_state.criterio_ordenamiento == "Pruebas aprobadas ↓" else (x[0] if st.session_state.criterio_ordenamiento == "Nombre (A-Z)" else (x[1], x[0]))
-        )]
+        modelos_list, pruebas_dict_nav = construir_opciones_modelos()
         current_idx = modelos_list.index(st.session_state.modelo_seleccionado)
 
         tab1, tab2, tab3 = st.tabs(["Visualizacion", "Predicciones", "Diagnosticos"])
@@ -1019,21 +1035,51 @@ with col_right:
             else:
                 st.info("No hay datos de coeficientes.")
 
-        # --- Bottom nav bar (flechas funcionan via session state) ---
-        st.markdown("<div style='height:50px;'></div>", unsafe_allow_html=True)
-        nav_cols = st.columns([1, 2, 1])
-        with nav_cols[0]:
-            if st.button("← Anterior", disabled=current_idx==0, key="btn_prev_real", use_container_width=True):
-                st.session_state.modelo_seleccionado = modelos_list[current_idx - 1]
-                st.rerun()
-        with nav_cols[1]:
+        # --- Bottom nav bar (flechas), sticky opcional via switch en el sidebar ---
+        nav_sticky = st.session_state.get("nav_sticky", True)
+
+        if nav_sticky:
             st.markdown(f"""
-            <div style="text-align:center;padding:8px 0;">
-                <p style="font-size:11px;color:{MUTED};margin:0;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Modelo {current_idx + 1} de {len(modelos_list)}</p>
-                <p style="font-size:13px;color:{NAVY};font-weight:700;margin:2px 0 0;">{st.session_state.modelo_seleccionado}</p>
-            </div>
+            <style>
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(> div > div.st-key-nav_flechas),
+            .st-key-nav_flechas {{
+                position: fixed !important;
+                bottom: 22px;
+                left: 50%;
+                transform: translateX(-46%);
+                z-index: 9999;
+                background: {WHITE};
+                border: 1px solid {BORDER};
+                border-radius: 14px;
+                box-shadow: 0 8px 28px rgba(11,37,69,0.16);
+                padding: 6px 10px !important;
+                width: auto !important;
+                max-width: 560px;
+            }}
+            .block-container {{ padding-bottom: 120px !important; }}
+            </style>
             """, unsafe_allow_html=True)
-        with nav_cols[2]:
-            if st.button("Siguiente →", disabled=current_idx==len(modelos_list)-1, key="btn_next_real", use_container_width=True):
-                st.session_state.modelo_seleccionado = modelos_list[current_idx + 1]
-                st.rerun()
+        else:
+            st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
+
+        with st.container(key="nav_flechas"):
+            nav_cols = st.columns([1, 2, 1])
+            with nav_cols[0]:
+                if st.button("← Anterior", disabled=current_idx == 0, key="btn_prev_real", use_container_width=True):
+                    nuevo = modelos_list[current_idx - 1]
+                    st.session_state.modelo_seleccionado = nuevo
+                    st.session_state.sel_modelo = label_modelo(nuevo, pruebas_dict_nav)
+                    st.rerun()
+            with nav_cols[1]:
+                st.markdown(f"""
+                <div style="text-align:center;padding:6px 4px;">
+                    <p style="font-size:10px;color:{MUTED};margin:0;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Modelo {current_idx + 1} de {len(modelos_list)}</p>
+                    <p style="font-size:13px;color:{NAVY};font-weight:700;margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{st.session_state.modelo_seleccionado}</p>
+                </div>
+                """, unsafe_allow_html=True)
+            with nav_cols[2]:
+                if st.button("Siguiente →", disabled=current_idx == len(modelos_list) - 1, key="btn_next_real", use_container_width=True):
+                    nuevo = modelos_list[current_idx + 1]
+                    st.session_state.modelo_seleccionado = nuevo
+                    st.session_state.sel_modelo = label_modelo(nuevo, pruebas_dict_nav)
+                    st.rerun()
