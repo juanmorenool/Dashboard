@@ -691,7 +691,7 @@ def evaluar_prueba(prueba, p_val):
         estado = "NO CUMPLE"
     return estado, (bg, fg, estado), score, bg, fg
 
-def render_diagnosticos_corporativo(pruebas_df):
+def render_diagnosticos_corporativo(pruebas_df, mostrar_detalle_tecnico=True):
     if pruebas_df is None or pruebas_df.empty:
         st.info("No hay datos de pruebas estadisticas.")
         return
@@ -726,6 +726,8 @@ def render_diagnosticos_corporativo(pruebas_df):
                     f"<p style='font-size:12px;color:{TEXT};margin:0;'>{interpretar_prueba(f['Diagnostico'], f['P-valor'], f['Score'])}</p>",
                     unsafe_allow_html=True
                 )
+    if not mostrar_detalle_tecnico:
+        return
     st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
     st.markdown(section_title("Detalle Tecnico"), unsafe_allow_html=True)
     df_tec = pd.DataFrame(filas)[['Diagnostico', 'Estadistico', 'P-valor', 'Score']]
@@ -1247,7 +1249,7 @@ with col_right:
             else:
                 st.info("No hay datos de FWL a 12 meses.")
             st.markdown(divider(), unsafe_allow_html=True)
-            render_diagnosticos_corporativo(datos.get('pruebas'))
+            render_diagnosticos_corporativo(datos.get('pruebas'), mostrar_detalle_tecnico=False)
             st.markdown(divider(), unsafe_allow_html=True)
             render_seccion_coeficientes(datos, key_prefix="resumen")
         # =====================================================================
