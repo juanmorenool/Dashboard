@@ -7,7 +7,7 @@ import json
 import openpyxl
 
 # =============================================================================
-# PALETA CORPORATIVA BANCA — Sin emojis, sin colores chillones
+# PALETA CORPORATIVA BANCA
 # =============================================================================
 NAVY    = "#0B2545"
 BLUE    = "#1E5AA8"
@@ -22,11 +22,17 @@ TEXT    = "#1A1D23"
 MUTED   = "#5A6270"
 TINT    = "#EDF2F7"
 
-# Estados corporativos (sin emojis)
 ESTADO_OK      = ("#E8F5E9", "#1A6B3E", "CUMPLE")
 ESTADO_WARN    = ("#FFF8E1", "#B8860B", "REVISAR")
 ESTADO_FAIL    = ("#FFEBEE", "#B83232", "NO CUMPLE")
 ESTADO_NEUTRAL = ("#F5F5F5", "#5A6270", "N/A")
+
+SCORE_COLORS = {
+    'A': ("#E8F5E9", "#1A6B3E"),
+    'B': ("#E3F2FD", "#1565C0"),
+    'C': ("#FFF8E1", "#B8860B"),
+    'D': ("#FFEBEE", "#B83232"),
+}
 
 PAISES_MAP = {
     'colombia': 'Colombia',
@@ -42,9 +48,6 @@ CARTERAS_MAP = {
     'micro': 'Microcrédito',
 }
 
-# =============================================================================
-# CSS GLOBAL — Corporativo, limpio, sin emojis
-# =============================================================================
 def inject_css():
     st.markdown(f"""
     <style>
@@ -58,19 +61,15 @@ def inject_css():
     header[data-testid="stHeader"] {{ background: transparent; }}
     .block-container {{ padding-top: 0.5rem; padding-bottom: 2rem; max-width: 1400px; }}
     .stApp {{ background-color: {BG}; }}
-
-    /* Sidebar compacto */
     section[data-testid="stSidebar"] {{
         background-color: {WHITE}; border-right: 1px solid {BORDER};
         min-width: 260px !important; max-width: 260px !important;
     }}
     section[data-testid="stSidebar"] .block-container {{ padding: 16px; }}
-
     h1 {{ color: {NAVY} !important; font-weight: 700 !important; font-size: 22px !important; }}
     h2 {{ color: {NAVY} !important; font-weight: 600 !important; font-size: 16px !important; margin-top: 0.2rem !important; }}
     h3 {{ color: {NAVY} !important; font-weight: 600 !important; font-size: 14px !important;
          border-left: 3px solid {BLUE}; padding-left: 10px; margin-top: 0.3rem !important; }}
-
     .stTabs [data-baseweb="tab-list"] {{ gap: 2px; border-bottom: 1px solid {BORDER}; }}
     .stTabs [data-baseweb="tab"] {{
         background-color: transparent; border-radius: 6px 6px 0 0;
@@ -79,14 +78,8 @@ def inject_css():
     .stTabs [aria-selected="true"] {{
         background-color: {TINT} !important; color: {NAVY} !important; font-weight: 600;
     }}
-
-    /* Dataframes */
     div[data-testid="stDataFrame"] {{ border: 1px solid {BORDER}; border-radius: 6px; }}
-
-    /* Sidebar sticky */
     section[data-testid="stSidebar"] {{ position: sticky; top: 0; height: 100vh; overflow-y: auto; }}
-
-    /* Bottom nav */
     .bottom-bar {{
         position: fixed; bottom: 0; left: 260px; right: 0;
         background: {WHITE}; border-top: 1px solid {BORDER};
@@ -115,18 +108,13 @@ def inject_css():
     </style>
     """, unsafe_allow_html=True)
 
-# =============================================================================
-# COMPONENTES HTML CORPORATIVOS
-# =============================================================================
 def pill(text, color_bg, color_fg):
     return f'<span style="background:{color_bg};color:{color_fg};font-size:11px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;">{text}</span>'
-
 
 def tag_ok():    return pill("CUMPLE", ESTADO_OK[0], ESTADO_OK[1])
 def tag_warn():  return pill("REVISAR", ESTADO_WARN[0], ESTADO_WARN[1])
 def tag_fail():  return pill("NO CUMPLE", ESTADO_FAIL[0], ESTADO_FAIL[1])
 def tag_neutral(): return pill("N/A", ESTADO_NEUTRAL[0], ESTADO_NEUTRAL[1])
-
 
 def card_kpi(title, value, subtitle="", accent=NAVY):
     sub = f'<p style="font-size:12px;color:{MUTED};margin:4px 0 0;line-height:1.3;">{subtitle}</p>' if subtitle else ''
@@ -138,7 +126,6 @@ def card_kpi(title, value, subtitle="", accent=NAVY):
     </div>
     """
 
-
 def card_metric(label, value, color=TEXT):
     return f"""
     <div style="background:{WHITE};border:1px solid {BORDER};border-radius:6px;padding:12px 14px;">
@@ -147,10 +134,8 @@ def card_metric(label, value, color=TEXT):
     </div>
     """
 
-
 def divider():
     return f"<div style='height:1px;background:{BORDER};margin:16px 0;'></div>"
-
 
 def section_title(text):
     return f"<p style='font-size:13px;font-weight:700;color:{NAVY};margin:0 0 12px;text-transform:uppercase;letter-spacing:0.5px;'>{text}</p>"
@@ -173,7 +158,6 @@ def convertir_fecha(serie):
         pass
     return pd.to_datetime(serie, errors='coerce')
 
-
 def leer_meta_embebida(file, prefix="sarimax_meta"):
     try:
         file.seek(0)
@@ -189,7 +173,6 @@ def leer_meta_embebida(file, prefix="sarimax_meta"):
         return None
     finally:
         file.seek(0)
-
 
 def parsear_excel(file):
     xls = pd.ExcelFile(file)
@@ -207,7 +190,6 @@ def parsear_excel(file):
             if name:
                 col_map.setdefault(name, []).append(idx)
         modelo = {"nombre": sheet_name}
-
         exog_cols, exog_names = [], set()
         for idx, name in enumerate(headers):
             nu = name.upper()
@@ -221,7 +203,6 @@ def parsear_excel(file):
                         base_name = base_name[:-len(suffix)]
                         break
                 exog_names.add(base_name)
-
         endogena_cols = ['BASE', 'ADVERSO', 'OPTIMISTA']
         cols_seccion1 = ['fecha'] + endogena_cols + exog_cols
         if 'FWL_BASE' in col_map:
@@ -241,7 +222,6 @@ def parsear_excel(file):
             modelo['exogenas'] = df_seccion1[['fecha'] + exog_cols] if 'fecha' in df_seccion1.columns else df_seccion1[exog_cols]
         else:
             modelo['exogenas'] = None
-
         fwl_cols = [c for c in ['FWL_BASE', 'FWL_ADVERSO', 'FWL_OPTIMISTA'] if c in col_map]
         if fwl_cols and 'fecha' in col_map:
             idx_fwl = [col_map['fecha'][0]] + [col_map[c][0] for c in fwl_cols]
@@ -253,7 +233,6 @@ def parsear_excel(file):
             modelo['fwl_12m'] = df_fwl
         else:
             modelo['fwl_12m'] = None
-
         if 'Año' in col_map and 'Escenario' in col_map and 'Factor FWL' in col_map:
             idx_anual = [col_map['Año'][0], col_map['Escenario'][0], col_map['Factor FWL'][0]]
             df_anual = df_raw.iloc[2:, idx_anual].copy()
@@ -262,7 +241,6 @@ def parsear_excel(file):
             modelo['fwl_anual'] = df_anual
         else:
             modelo['fwl_anual'] = None
-
         if 'Obs' in col_map and 'Residuo' in col_map:
             idx_res = [col_map['Obs'][0], col_map['Residuo'][0]]
             df_res = df_raw.iloc[2:, idx_res].copy()
@@ -271,7 +249,6 @@ def parsear_excel(file):
             modelo['residuos_ind'] = df_res
         else:
             modelo['residuos_ind'] = None
-
         if 'Estadistico' in col_map and 'Valor' in col_map:
             idx_est = col_map['Estadistico'][0]
             idx_val = col_map['Valor'][0]
@@ -281,7 +258,6 @@ def parsear_excel(file):
             modelo['resumen_residuos'] = df_resumen
         else:
             modelo['resumen_residuos'] = None
-
         if 'Variable' in col_map and 'Coeficiente' in col_map and 'P_value' in col_map:
             idx_var = col_map['Variable'][0]
             idx_coef = col_map['Coeficiente'][0]
@@ -292,7 +268,6 @@ def parsear_excel(file):
             modelo['coeficientes'] = df_coef
         else:
             modelo['coeficientes'] = None
-
         if 'Prueba' in col_map and 'Estadistico' in col_map and 'P_value' in col_map:
             idx_prueba = col_map['Prueba'][0]
             idx_est = col_map['Estadistico'][-1]
@@ -303,11 +278,9 @@ def parsear_excel(file):
             modelo['pruebas'] = df_pruebas
         else:
             modelo['pruebas'] = None
-
         modelo['observaciones'] = len(modelo['fecha_endogena'].dropna(how='all')) if modelo['fecha_endogena'] is not None and not modelo['fecha_endogena'].empty else 0
         modelos[sheet_name] = modelo
     return modelos
-
 
 # =============================================================================
 # UTILIDADES
@@ -331,7 +304,6 @@ def contar_pruebas_aprobadas(pruebas_df):
             if p_val > 0.05: aprobadas += 1
     return aprobadas, 3
 
-
 def clasificar_variable(var_name):
     var_lower = str(var_name).lower()
     if var_lower.startswith('ar.'): return 'AR'
@@ -341,6 +313,18 @@ def clasificar_variable(var_name):
     elif var_lower == 'sigma2': return 'Varianza'
     return 'Otro'
 
+def contar_ar_ma(coeficientes_df):
+    if coeficientes_df is None or coeficientes_df.empty:
+        return 0, 0
+    ar_count = 0
+    ma_count = 0
+    for _, row in coeficientes_df.iterrows():
+        var = str(row.get('Variable', '')).lower()
+        if var.startswith('ar.'):
+            ar_count += 1
+        elif var.startswith('ma.'):
+            ma_count += 1
+    return ar_count, ma_count
 
 def generar_campana_normal(residuos, media, std):
     if std == 0 or len(residuos) == 0:
@@ -348,7 +332,6 @@ def generar_campana_normal(residuos, media, std):
     x = np.linspace(min(residuos), max(residuos), 100)
     y = (1 / (std * np.sqrt(2 * np.pi))) * np.exp(-0.5 * ((x - media) / std) ** 2)
     return x, y
-
 
 def obtener_significancia_exogenas(coeficientes_df, exogenas_lista):
     if coeficientes_df is None or coeficientes_df.empty:
@@ -374,7 +357,6 @@ def obtener_significancia_exogenas(coeficientes_df, exogenas_lista):
             resultados.append((exog, p_val, "No significativa"))
     return resultados
 
-
 def calcular_fwl_ponderado(fwl_df, pesos):
     if fwl_df is None or fwl_df.empty:
         return None
@@ -397,7 +379,6 @@ def calcular_fwl_ponderado(fwl_df, pesos):
     )
     return df
 
-
 def resumen_fwl(fwl_df):
     if fwl_df is None or fwl_df.empty or 'FWL_Ponderado' not in fwl_df.columns:
         return {}
@@ -406,6 +387,109 @@ def resumen_fwl(fwl_df):
         return {}
     return {'promedio': vals.mean(), 'maximo': vals.max(), 'minimo': vals.min(), 'volatilidad': vals.std()}
 
+# =============================================================================
+# SCORE SYSTEM (A-D Grading)
+# =============================================================================
+def calcular_score(p_val, prueba_nombre=""):
+    if p_val is None or pd.isna(p_val):
+        return 'N/A', ESTADO_NEUTRAL
+    try:
+        p_val = float(p_val)
+    except:
+        return 'N/A', ESTADO_NEUTRAL
+    prueba_lower = str(prueba_nombre).lower()
+    if 'jarque' in prueba_lower or 'bera' in prueba_lower:
+        if p_val > 0.10:
+            return 'A', SCORE_COLORS['A']
+        elif p_val > 0.05:
+            return 'B', SCORE_COLORS['B']
+        elif p_val > 0.01:
+            return 'C', SCORE_COLORS['C']
+        else:
+            return 'D', SCORE_COLORS['D']
+    else:
+        if p_val > 0.10:
+            return 'A', SCORE_COLORS['A']
+        elif p_val > 0.05:
+            return 'B', SCORE_COLORS['B']
+        elif p_val > 0.01:
+            return 'C', SCORE_COLORS['C']
+        else:
+            return 'D', SCORE_COLORS['D']
+
+def obtener_score_prueba(pruebas_df, nombre_prueba):
+    if pruebas_df is None or pruebas_df.empty:
+        return 'N/A', None
+    nombre_lower = nombre_prueba.lower()
+    for _, row in pruebas_df.iterrows():
+        prueba = str(row.get('Prueba', '')).lower()
+        p_val = row.get('P_value', None)
+        if 'ljung' in nombre_lower and ('ljung' in prueba or 'box' in prueba):
+            return calcular_score(p_val, prueba)
+        elif 'jarque' in nombre_lower and ('jarque' in prueba or 'bera' in prueba):
+            return calcular_score(p_val, prueba)
+        elif 'hetero' in nombre_lower and ('hetero' in prueba or 'arch' in prueba):
+            return calcular_score(p_val, prueba)
+    return 'N/A', None
+
+def obtener_scores_modelo(pruebas_df):
+    scores = {}
+    scores['ljung_box'] = obtener_score_prueba(pruebas_df, 'ljung')
+    scores['jarque_bera'] = obtener_score_prueba(pruebas_df, 'jarque')
+    scores['heterocedasticidad'] = obtener_score_prueba(pruebas_df, 'hetero')
+    return scores
+
+def score_badge(score, bg_color, fg_color):
+    return f'<span style="background:{bg_color};color:{fg_color};font-size:12px;padding:3px 10px;border-radius:4px;font-weight:700;">{score}</span>'
+
+def render_leyenda_scores():
+    html = f"""
+    <div style="background:{WHITE};border:1px solid {BORDER};border-radius:8px;padding:16px;margin:16px 0;">
+        <p style="font-size:12px;font-weight:700;color:{NAVY};margin:0 0 12px;text-transform:uppercase;letter-spacing:0.5px;">Clasificacion de Scores</p>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead>
+                <tr style="border-bottom:1px solid {BORDER};">
+                    <th style="text-align:left;padding:6px 8px;font-weight:600;color:{NAVY};">Score</th>
+                    <th style="text-align:left;padding:6px 8px;font-weight:600;color:{NAVY};">Rango p-valor</th>
+                    <th style="text-align:left;padding:6px 8px;font-weight:600;color:{NAVY};">Ljung-Box / Heterocedasticidad</th>
+                    <th style="text-align:left;padding:6px 8px;font-weight:600;color:{NAVY};">Jarque-Bera</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr style="border-bottom:1px solid {BORDER};">
+                    <td style="padding:6px 8px;">{score_badge('A', SCORE_COLORS['A'][0], SCORE_COLORS['A'][1])}</td>
+                    <td style="padding:6px 8px;color:{TEXT};">p &gt; 0.10</td>
+                    <td style="padding:6px 8px;color:{GREEN};font-weight:600;">Sin autocorrelacion / heterocedasticidad</td>
+                    <td style="padding:6px 8px;color:{GREEN};font-weight:600;">Residuos normales</td>
+                </tr>
+                <tr style="border-bottom:1px solid {BORDER};">
+                    <td style="padding:6px 8px;">{score_badge('B', SCORE_COLORS['B'][0], SCORE_COLORS['B'][1])}</td>
+                    <td style="padding:6px 8px;color:{TEXT};">0.05 &lt; p &le; 0.10</td>
+                    <td style="padding:6px 8px;color:{BLUE};font-weight:600;">Sin evidencia significativa</td>
+                    <td style="padding:6px 8px;color:{BLUE};font-weight:600;">Sin evidencia significativa</td>
+                </tr>
+                <tr style="border-bottom:1px solid {BORDER};">
+                    <td style="padding:6px 8px;">{score_badge('C', SCORE_COLORS['C'][0], SCORE_COLORS['C'][1])}</td>
+                    <td style="padding:6px 8px;color:{TEXT};">0.01 &lt; p &le; 0.05</td>
+                    <td style="padding:6px 8px;color:#B8860B;font-weight:600;">Evidencia debil de problema</td>
+                    <td style="padding:6px 8px;color:#B8860B;font-weight:600;">Evidencia debil de no-normalidad</td>
+                </tr>
+                <tr>
+                    <td style="padding:6px 8px;">{score_badge('D', SCORE_COLORS['D'][0], SCORE_COLORS['D'][1])}</td>
+                    <td style="padding:6px 8px;color:{TEXT};">p &le; 0.01</td>
+                    <td style="padding:6px 8px;color:{RED};font-weight:600;">Autocorrelacion / heterocedasticidad presente</td>
+                    <td style="padding:6px 8px;color:{RED};font-weight:600;">Residuos no normales</td>
+                </tr>
+            </tbody>
+        </table>
+        <p style="font-size:10px;color:{MUTED};margin:10px 0 0;line-height:1.4;">
+            <b>Ljung-Box:</b> Prueba de autocorrelacion en residuos. H0: no hay autocorrelacion.<br>
+            <b>Jarque-Bera:</b> Prueba de normalidad. H0: los residuos siguen distribucion normal.<br>
+            <b>Heterocedasticidad (ARCH/LM):</b> Prueba de varianza constante. H0: varianza homogenea.
+        </p>
+    </div>
+    """
+    return html
 
 # =============================================================================
 # METADATA
@@ -426,7 +510,6 @@ def extraer_kpis_meta(meta):
         'top_exportar': meta.get('motor_top_exportar', 'N/A'),
     }
 
-
 # =============================================================================
 # PLOTS
 # =============================================================================
@@ -442,7 +525,6 @@ def aplicar_tema_plotly(fig):
     if fig.layout.title and fig.layout.title.text:
         fig.update_layout(title=dict(font=dict(size=14, color=NAVY)))
     return fig
-
 
 def fig_predicciones(df_end, endogena_cols, exog_df, exog_sel, modelo_nombre):
     fig = go.Figure()
@@ -464,11 +546,10 @@ def fig_predicciones(df_end, endogena_cols, exog_df, exog_sel, modelo_nombre):
                 if col_name in exog_df.columns:
                     x_vals = exog_df[fecha_col] if fecha_col in exog_df.columns else exog_df.index
                     fig.add_trace(go.Scatter(x=x_vals, y=exog_df[col_name], mode='lines', name=f'{ex}{suffix}', line=dict(width=1.2), yaxis='y2'))
-        fig.update_layout(yaxis2=dict(title='Exógenas', overlaying='y', side='right'))
+        fig.update_layout(yaxis2=dict(title='Exogenas', overlaying='y', side='right'))
     fig.update_layout(title=f"Predicciones — {modelo_nombre}", xaxis_title="Fecha", yaxis_title="Valor",
                       legend=dict(orientation='v', yanchor='top', y=1, xanchor='left', x=1.05), hovermode='x unified')
     return aplicar_tema_plotly(fig)
-
 
 def fig_fwl_12m(df_fwl):
     fig = go.Figure()
@@ -491,7 +572,6 @@ def fig_fwl_12m(df_fwl):
                       legend=dict(orientation='v', yanchor='top', y=1, xanchor='left', x=1.05), hovermode='x unified')
     return aplicar_tema_plotly(fig)
 
-
 def fig_fwl_ponderado(df_pond):
     fecha_col = None
     for c in df_pond.columns:
@@ -506,7 +586,6 @@ def fig_fwl_ponderado(df_pond):
     fig.update_layout(title="Factor FWL Ponderado", xaxis_title="Fecha", yaxis_title="FWL Ponderado")
     return aplicar_tema_plotly(fig)
 
-
 def fig_histograma_residuos(vals, media, std):
     fig = go.Figure()
     fig.add_trace(go.Histogram(x=vals, nbinsx=20, marker_color=BLUE, opacity=0.7, name='Residuos'))
@@ -514,10 +593,9 @@ def fig_histograma_residuos(vals, media, std):
     if len(x_norm) > 0:
         bin_width = (vals.max() - vals.min()) / 20 if vals.max() != vals.min() else 1
         y_norm_scaled = y_norm * len(vals) * bin_width
-        fig.add_trace(go.Scatter(x=x_norm, y=y_norm_scaled, mode='lines', name='Normal teórica', line=dict(color=RED, width=2)))
+        fig.add_trace(go.Scatter(x=x_norm, y=y_norm_scaled, mode='lines', name='Normal teorica', line=dict(color=RED, width=2)))
     fig.update_layout(xaxis_title="Residuos", yaxis_title="Frecuencia")
     return aplicar_tema_plotly(fig)
-
 
 def fig_barras_coeficientes(df_coef):
     df = df_coef.copy()
@@ -530,9 +608,8 @@ def fig_barras_coeficientes(df_coef):
     fig.update_layout(title="Coeficientes del Modelo", xaxis_title="Valor", yaxis_title="Variable", showlegend=False)
     return aplicar_tema_plotly(fig)
 
-
 # =============================================================================
-# DIAGNOSTICOS — Corporativo, sin emojis, sin expanders
+# DIAGNOSTICOS
 # =============================================================================
 def limpiar_nombre_prueba(nombre):
     nl = str(nombre).lower()
@@ -541,143 +618,151 @@ def limpiar_nombre_prueba(nombre):
     if 'jarque' in nl or 'bera' in nl: return "Jarque-Bera"
     return str(nombre)
 
-
 def evaluar_prueba(prueba, p_val):
-    if pd.isna(p_val):
-        return "N/A", ESTADO_NEUTRAL
-    try: p_val = float(p_val)
-    except: return "N/A", ESTADO_NEUTRAL
-    pl = str(prueba).lower()
-    if 'jarque' in pl or 'bera' in pl:
-        if p_val < 0.05: return "NO CUMPLE", ESTADO_FAIL
-        elif p_val < 0.10: return "REVISAR", ESTADO_WARN
-        else: return "CUMPLE", ESTADO_OK
-    if p_val > 0.05: return "CUMPLE", ESTADO_OK
-    elif p_val > 0.01: return "REVISAR", ESTADO_WARN
-    else: return "NO CUMPLE", ESTADO_FAIL
-
+    score, (bg, fg) = calcular_score(p_val, prueba)
+    if score == 'N/A':
+        return "N/A", ESTADO_NEUTRAL, score, bg, fg
+    if score == 'A':
+        estado = "CUMPLE"
+    elif score == 'B':
+        estado = "CUMPLE"
+    elif score == 'C':
+        estado = "REVISAR"
+    else:
+        estado = "NO CUMPLE"
+    return estado, (bg, fg, estado), score, bg, fg
 
 def render_diagnosticos_corporativo(pruebas_df):
-    """Tabla ejecutiva + detalle técnico en la misma vista, sin expanders."""
     if pruebas_df is None or pruebas_df.empty:
-        st.info("No hay datos de pruebas estadísticas.")
+        st.info("No hay datos de pruebas estadisticas.")
         return
-
     df = pruebas_df.copy()
     df['Prueba'] = df['Prueba'].apply(limpiar_nombre_prueba)
-
-    # --- RESUMEN EJECUTIVO: tarjetas horizontales ---
-    st.markdown(section_title("Resumen de Diagnósticos"), unsafe_allow_html=True)
+    st.markdown(section_title("Resumen de Diagnosticos"), unsafe_allow_html=True)
     filas = []
     for _, row in df.iterrows():
         prueba = row['Prueba']
         p_val = row['P_value']
-        estado, (bg, fg, label) = evaluar_prueba(prueba, p_val)
+        estado, _, score, bg, fg = evaluar_prueba(prueba, p_val)
         filas.append({
-            'Diagnóstico': prueba,
-            'Estado': label,
-            'Color': fg,
-            'Bg': bg,
+            'Diagnostico': prueba,
+            'Score': score,
+            'ScoreBg': bg,
+            'ScoreFg': fg,
             'P-valor': p_val,
-            'Estadístico': row.get('Estadistico', '—'),
+            'Estadistico': row.get('Estadistico', '—'),
         })
-
     cols = st.columns(len(filas))
     for i, f in enumerate(filas):
         with cols[i]:
             st.markdown(f"""
-            <div style="background:{f['Bg']};border:1px solid {BORDER};border-radius:6px;padding:16px;text-align:center;">
-                <p style="font-size:10px;color:{LTGRAY};margin:0 0 6px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">{f['Diagnóstico']}</p>
-                <p style="font-size:16px;font-weight:700;color:{f['Color']};margin:0;">{f['Estado']}</p>
+            <div style="background:{f['ScoreBg']};border:1px solid {BORDER};border-radius:6px;padding:16px;text-align:center;">
+                <p style="font-size:10px;color:{MUTED};margin:0 0 6px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">{f['Diagnostico']}</p>
+                <p style="font-size:28px;font-weight:700;color:{f['ScoreFg']};margin:0;">{f['Score']}</p>
+                <p style="font-size:11px;color:{MUTED};margin:4px 0 0;">p = {fmt_pvalor(f['P-valor'])}</p>
             </div>
             """, unsafe_allow_html=True)
-
     st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-
-    # --- DETALLE TÉCNICO: tabla limpia, visible siempre ---
-    st.markdown(section_title("Detalle Técnico"), unsafe_allow_html=True)
-    df_tec = pd.DataFrame(filas)[['Diagnóstico', 'Estadístico', 'P-valor', 'Estado']]
-
-    def fmt_p(v):
-        try:
-            if pd.isna(v): return "—"
-            vf = float(v)
-            return f"{vf:.4f}" if vf >= 0.001 else f"{vf:.2e}"
-        except: return str(v)
-
-    df_tec['P-valor'] = df_tec['P-valor'].apply(fmt_p)
-    df_tec['Estadístico'] = df_tec['Estadístico'].apply(fmt_p)
-
-    def color_estado(val):
-        if val == "CUMPLE": return f"color: {GREEN}; font-weight: 700;"
-        elif val == "NO CUMPLE": return f"color: {RED}; font-weight: 700;"
-        elif val == "REVISAR": return f"color: #B8860B; font-weight: 700;"
+    st.markdown(section_title("Detalle Tecnico"), unsafe_allow_html=True)
+    df_tec = pd.DataFrame(filas)[['Diagnostico', 'Estadistico', 'P-valor', 'Score']]
+    df_tec['P-valor'] = df_tec['P-valor'].apply(fmt_pvalor)
+    df_tec['Estadistico'] = df_tec['Estadistico'].apply(fmt_pvalor)
+    def color_score(val):
+        if val == "A": return f"color: {GREEN}; font-weight: 700;"
+        elif val == "B": return f"color: {BLUE}; font-weight: 700;"
+        elif val == "C": return f"color: #B8860B; font-weight: 700;"
+        elif val == "D": return f"color: {RED}; font-weight: 700;"
         return ""
-
     styler = df_tec.style
     if hasattr(styler, "map"):
-        styler = styler.map(color_estado, subset=['Estado'])
+        styler = styler.map(color_score, subset=['Score'])
     else:
-        styler = styler.applymap(color_estado, subset=['Estado'])
+        styler = styler.applymap(color_score, subset=['Score'])
     st.dataframe(styler, use_container_width=True, hide_index=True)
 
+def fmt_pvalor(v):
+    try:
+        if pd.isna(v): return "—"
+        vf = float(v)
+        return f"{vf:.4f}" if vf >= 0.001 else f"{vf:.2e}"
+    except: return str(v)
 
 def render_metricas_diagnostico(pruebas_df):
     if pruebas_df is None or pruebas_df.empty:
         return
-    lb_p = jb_p = het_p = None
-    for _, row in pruebas_df.iterrows():
-        prueba = str(row.get('Prueba', '')).lower()
-        p_val = row.get('P_value', None)
-        if pd.isna(p_val): continue
-        try: p_val = float(p_val)
-        except: continue
-        if 'ljung' in prueba or 'box' in prueba: lb_p = p_val
-        elif 'jarque' in prueba or 'bera' in prueba: jb_p = p_val
-        elif 'hetero' in prueba or 'arch' in prueba: het_p = p_val
-
+    scores = obtener_scores_modelo(pruebas_df)
     c1, c2, c3 = st.columns(3)
     with c1:
-        val = f"{lb_p:.4f}" if lb_p is not None else "—"
-        color = GREEN if lb_p is not None and lb_p > 0.05 else RED
-        st.markdown(card_metric("Ljung-Box (p-valor)", val, color), unsafe_allow_html=True)
+        score, (bg, fg) = scores.get('ljung_box', ('N/A', ESTADO_NEUTRAL))
+        st.markdown(card_metric("Ljung-Box (Score)", score, fg if score != 'N/A' else TEXT), unsafe_allow_html=True)
     with c2:
-        val = f"{jb_p:.4f}" if jb_p is not None else "—"
-        color = RED if jb_p is not None and jb_p < 0.05 else GREEN
-        st.markdown(card_metric("Jarque-Bera (p-valor)", val, color), unsafe_allow_html=True)
+        score, (bg, fg) = scores.get('jarque_bera', ('N/A', ESTADO_NEUTRAL))
+        st.markdown(card_metric("Jarque-Bera (Score)", score, fg if score != 'N/A' else TEXT), unsafe_allow_html=True)
     with c3:
-        val = f"{het_p:.4f}" if het_p is not None else "—"
-        color = GREEN if het_p is not None and het_p > 0.05 else RED
-        st.markdown(card_metric("Heterocedasticidad (p-valor)", val, color), unsafe_allow_html=True)
-
+        score, (bg, fg) = scores.get('heterocedasticidad', ('N/A', ESTADO_NEUTRAL))
+        st.markdown(card_metric("Heterocedasticidad (Score)", score, fg if score != 'N/A' else TEXT), unsafe_allow_html=True)
 
 def construir_opciones_modelos():
-    """Construye la lista de modelos ordenada segun el criterio activo y el
-    diccionario de pruebas aprobadas. Es la UNICA fuente de orden: tanto el
-    selectbox del sidebar como las flechas de navegacion la usan, para que
-    nunca queden desincronizados."""
     criterio = st.session_state.get("criterio_ordenamiento", "Pruebas aprobadas ↓")
+    filtro_ljung = st.session_state.get("filtro_ljung", "Todos")
+    filtro_jarque = st.session_state.get("filtro_jarque", "Todos")
+    filtro_hetero = st.session_state.get("filtro_hetero", "Todos")
     modelos_con_pruebas = []
     for nombre, datos in st.session_state.modelos_data.items():
-        apr, tot = contar_pruebas_aprobadas(datos.get('pruebas'))
-        modelos_con_pruebas.append((nombre, apr, tot))
-
+        pruebas = datos.get('pruebas')
+        apr, tot = contar_pruebas_aprobadas(pruebas)
+        scores = obtener_scores_modelo(pruebas)
+        pasa_filtro = True
+        if filtro_ljung != "Todos":
+            score_ljung, _ = scores.get('ljung_box', ('N/A', None))
+            if filtro_ljung == "A o B (Cumple)" and score_ljung not in ['A', 'B']:
+                pasa_filtro = False
+            elif filtro_ljung == "A, B o C" and score_ljung not in ['A', 'B', 'C']:
+                pasa_filtro = False
+            elif filtro_ljung == "Solo A" and score_ljung != 'A':
+                pasa_filtro = False
+        if filtro_jarque != "Todos":
+            score_jarque, _ = scores.get('jarque_bera', ('N/A', None))
+            if filtro_jarque == "A o B (Cumple)" and score_jarque not in ['A', 'B']:
+                pasa_filtro = False
+            elif filtro_jarque == "A, B o C" and score_jarque not in ['A', 'B', 'C']:
+                pasa_filtro = False
+            elif filtro_jarque == "Solo A" and score_jarque != 'A':
+                pasa_filtro = False
+        if filtro_hetero != "Todos":
+            score_hetero, _ = scores.get('heterocedasticidad', ('N/A', None))
+            if filtro_hetero == "A o B (Cumple)" and score_hetero not in ['A', 'B']:
+                pasa_filtro = False
+            elif filtro_hetero == "A, B o C" and score_hetero not in ['A', 'B', 'C']:
+                pasa_filtro = False
+            elif filtro_hetero == "Solo A" and score_hetero != 'A':
+                pasa_filtro = False
+        if pasa_filtro:
+            modelos_con_pruebas.append((nombre, apr, tot, scores))
     if criterio == "Nombre (A-Z)":
         modelos_con_pruebas.sort(key=lambda x: x[0])
     elif criterio == "Pruebas aprobadas ↓":
         modelos_con_pruebas.sort(key=lambda x: (-x[1], x[0]))
     else:
         modelos_con_pruebas.sort(key=lambda x: (x[1], x[0]))
-
     modelos_list = [m[0] for m in modelos_con_pruebas]
     pruebas_dict = {m[0]: (m[1], m[2]) for m in modelos_con_pruebas}
-    return modelos_list, pruebas_dict
+    scores_dict = {m[0]: m[3] for m in modelos_con_pruebas}
+    return modelos_list, pruebas_dict, scores_dict
 
-
-def label_modelo(nombre, pruebas_dict):
+def label_modelo(nombre, pruebas_dict, scores_dict=None):
     apr, tot = pruebas_dict.get(nombre, (0, 3))
-    return f"{nombre}  ({apr}/{tot})"
-
+    label = f"{nombre}  ({apr}/{tot})"
+    if scores_dict and nombre in scores_dict:
+        scores = scores_dict[nombre]
+        mini_scores = []
+        for key in ['ljung_box', 'jarque_bera', 'heterocedasticidad']:
+            score, _ = scores.get(key, ('N/A', None))
+            if score != 'N/A':
+                mini_scores.append(score)
+        if mini_scores:
+            label += f"  [{'|'.join(mini_scores)}]"
+    return label
 
 # =============================================================================
 # SESSION STATE
@@ -687,6 +772,7 @@ for key, default in [
     ("modelo_seleccionado", None), ("criterio_ordenamiento", "Pruebas aprobadas ↓"),
     ("exog_sel", {}), ("pred_filtro", "Todas"), ("nav_sticky", True),
     ("pending_modelo", None),
+    ("filtro_ljung", "Todos"), ("filtro_jarque", "Todos"), ("filtro_hetero", "Todos"),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -704,7 +790,6 @@ col_left, col_right = st.columns([1, 4])
 # =========================================================================
 with col_left:
     st.markdown(f"<p style='font-size:12px;font-weight:700;color:{NAVY};margin:0 0 10px;letter-spacing:0.5px;'>CARGAR MODELO</p>", unsafe_allow_html=True)
-
     uploaded = st.file_uploader("Archivo Excel (.xlsx)", type=["xlsx"], label_visibility="collapsed")
     if uploaded is not None:
         st.session_state.uploaded_file = uploaded
@@ -716,7 +801,6 @@ with col_left:
             st.success(f"Archivo cargado: {uploaded.name}")
             if st.session_state.modelo_seleccionado is None or st.session_state.modelo_seleccionado not in st.session_state.modelos_data:
                 st.session_state.modelo_seleccionado = list(st.session_state.modelos_data.keys())[0]
-
     if st.session_state.uploaded_file is not None:
         if st.button("Eliminar archivo", key="btn_eliminar", use_container_width=True):
             st.session_state.uploaded_file = None
@@ -726,29 +810,23 @@ with col_left:
             st.session_state.last_file_name = None
             st.session_state.exog_sel = {}
             st.rerun()
-
     if st.session_state.modelos_data:
         st.markdown(divider(), unsafe_allow_html=True)
-
         meta = st.session_state.meta_contexto
         if meta:
             meta_kpis = extraer_kpis_meta(meta)
             st.markdown(section_title("Contexto de la corrida"), unsafe_allow_html=True)
-
-            # Tarjetas metadata en grid 2x3, sin texto cortado
             c1, c2 = st.columns(2)
             with c1:
                 st.markdown(card_kpi("Pais", meta_kpis.get('pais', '—')), unsafe_allow_html=True)
             with c2:
                 st.markdown(card_kpi("Ventana media movil", meta_kpis.get('ventana_mm', '—')), unsafe_allow_html=True)
-
             c1, c2 = st.columns(2)
             with c1:
                 st.markdown(card_kpi("Cartera", meta_kpis.get('cartera', '—'), accent=BLUE), unsafe_allow_html=True)
             with c2:
                 fwl_range = f"{meta_kpis.get('fwl_min', '?')} – {meta_kpis.get('fwl_max', '?')}"
                 st.markdown(card_kpi("Rango FWL", fwl_range, accent=GREEN), unsafe_allow_html=True)
-
             c1, c2 = st.columns(2)
             with c1:
                 st.markdown(card_kpi("Modo endogena", meta_kpis.get('modo_endogena', '—')), unsafe_allow_html=True)
@@ -756,51 +834,58 @@ with col_left:
                 st.markdown(card_kpi("Top exportados", meta_kpis.get('top_exportar', '—')), unsafe_allow_html=True)
         else:
             st.caption("Sin metadata embebida.")
-
         st.markdown(divider(), unsafe_allow_html=True)
-
         criterio = st.radio("Ordenar por:", ["Nombre (A-Z)", "Pruebas aprobadas ↓", "Pruebas aprobadas ↑"],
                             index=1, key="criterio_orden")
         st.session_state.criterio_ordenamiento = criterio
-
-        modelos_list, pruebas_dict = construir_opciones_modelos()
-
-        # --- Resolver navegacion pendiente (flechas) ANTES de crear el widget ---
-        # Streamlit prohibe escribir st.session_state["sel_modelo"] una vez que
-        # el selectbox con esa key ya fue instanciado en el run actual. Por eso
-        # las flechas NUNCA tocan "sel_modelo" directamente: solo dejan un
-        # "pending_modelo" y aqui, antes de crear el widget, lo aplicamos.
+        # --- FILTROS DE DIAGNOSTICO ---
+        st.markdown(section_title("Filtros de Diagnostico"), unsafe_allow_html=True)
+        st.markdown(f"<p style='font-size:10px;color:{MUTED};margin:0 0 4px;'>Ljung-Box</p>", unsafe_allow_html=True)
+        filtro_ljung = st.selectbox("", ["Todos", "A o B (Cumple)", "A, B o C", "Solo A"], 
+                                     index=0, key="filtro_ljung_sel", label_visibility="collapsed")
+        st.session_state.filtro_ljung = filtro_ljung
+        st.markdown(f"<p style='font-size:10px;color:{MUTED};margin:8px 0 4px;'>Jarque-Bera</p>", unsafe_allow_html=True)
+        filtro_jarque = st.selectbox("", ["Todos", "A o B (Cumple)", "A, B o C", "Solo A"], 
+                                      index=0, key="filtro_jarque_sel", label_visibility="collapsed")
+        st.session_state.filtro_jarque = filtro_jarque
+        st.markdown(f"<p style='font-size:10px;color:{MUTED};margin:8px 0 4px;'>Heterocedasticidad</p>", unsafe_allow_html=True)
+        filtro_hetero = st.selectbox("", ["Todos", "A o B (Cumple)", "A, B o C", "Solo A"], 
+                                      index=0, key="filtro_hetero_sel", label_visibility="collapsed")
+        st.session_state.filtro_hetero = filtro_hetero
+        st.markdown(divider(), unsafe_allow_html=True)
+        modelos_list, pruebas_dict, scores_dict = construir_opciones_modelos()
         if st.session_state.pending_modelo is not None and st.session_state.pending_modelo in modelos_list:
             st.session_state.modelo_seleccionado = st.session_state.pending_modelo
-            st.session_state["sel_modelo"] = label_modelo(st.session_state.pending_modelo, pruebas_dict)
+            st.session_state["sel_modelo"] = label_modelo(st.session_state.pending_modelo, pruebas_dict, scores_dict)
             st.session_state.pending_modelo = None
-
-        opciones = [label_modelo(m, pruebas_dict) for m in modelos_list]
-        idx = modelos_list.index(st.session_state.modelo_seleccionado) if st.session_state.modelo_seleccionado in modelos_list else 0
-        seleccion = st.selectbox("Modelo", opciones, index=idx, key="sel_modelo")
-        st.session_state.modelo_seleccionado = seleccion.split("  (")[0]
-
+        opciones = [label_modelo(m, pruebas_dict, scores_dict) for m in modelos_list]
+        if not modelos_list:
+            st.warning("Ningun modelo cumple con los filtros seleccionados.")
+            st.session_state.modelo_seleccionado = None
+        else:
+            idx = modelos_list.index(st.session_state.modelo_seleccionado) if st.session_state.modelo_seleccionado in modelos_list else 0
+            seleccion = st.selectbox("Modelo", opciones, index=idx, key="sel_modelo")
+            st.session_state.modelo_seleccionado = seleccion.split("  (")[0]
         st.markdown(divider(), unsafe_allow_html=True)
         st.toggle("Fijar flechas de navegacion", key="nav_sticky",
                   help="Mantiene los botones Anterior/Siguiente siempre visibles, flotando sobre la pagina al hacer scroll.")
-
-        datos = st.session_state.modelos_data.get(st.session_state.modelo_seleccionado, {})
-        st.markdown(f"<p style='font-size:11px;font-weight:600;color:{NAVY};margin:12px 0 4px;'>MODELO ACTUAL</p>", unsafe_allow_html=True)
-        st.markdown(f"<p style='font-size:14px;font-weight:700;color:{NAVY};margin:0;'>{st.session_state.modelo_seleccionado}</p>", unsafe_allow_html=True)
-        st.markdown(f"<p style='font-size:11px;color:{MUTED};margin:4px 0 0;'>{datos.get('observaciones', 0)} observaciones</p>", unsafe_allow_html=True)
-
-        exogenas = datos.get('exogenas_nombres', [])
-        if exogenas:
-            st.markdown(f"<p style='font-size:11px;font-weight:600;color:{NAVY};margin:12px 0 6px;'>EXOGENAS</p>", unsafe_allow_html=True)
-            coefs = datos.get('coeficientes')
-            sigs = obtener_significancia_exogenas(coefs, exogenas)
-            sig_count = sum(1 for _, _, s in sigs if s == "Significativa")
-            st.markdown(f"<p style='font-size:10px;color:{MUTED};margin:0 0 6px;'>{sig_count} de {len(exogenas)} significativas</p>", unsafe_allow_html=True)
-            for ex, pval, status in sigs:
-                color = GREEN if status == "Significativa" else (RED if status == "No significativa" else "#B8860B")
-                label = "SIG" if status == "Significativa" else ("NO SIG" if status == "No significativa" else "MARG")
-                p_txt = f"p={pval:.3f}" if pval is not None else "p=N/A"
-                st.markdown(f'<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;font-size:11px;"><span style="color:{TEXT}">{ex}</span><span style="color:{color};font-weight:600;">{label} ({p_txt})</span></div>', unsafe_allow_html=True)
+        if st.session_state.modelo_seleccionado:
+            datos = st.session_state.modelos_data.get(st.session_state.modelo_seleccionado, {})
+            st.markdown(f"<p style='font-size:11px;font-weight:600;color:{NAVY};margin:12px 0 4px;'>MODELO ACTUAL</p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='font-size:14px;font-weight:700;color:{NAVY};margin:0;'>{st.session_state.modelo_seleccionado}</p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='font-size:11px;color:{MUTED};margin:4px 0 0;'>{datos.get('observaciones', 0)} observaciones</p>", unsafe_allow_html=True)
+            exogenas = datos.get('exogenas_nombres', [])
+            if exogenas:
+                st.markdown(f"<p style='font-size:11px;font-weight:600;color:{NAVY};margin:12px 0 6px;'>EXOGENAS</p>", unsafe_allow_html=True)
+                coefs = datos.get('coeficientes')
+                sigs = obtener_significancia_exogenas(coefs, exogenas)
+                sig_count = sum(1 for _, _, s in sigs if s == "Significativa")
+                st.markdown(f"<p style='font-size:10px;color:{MUTED};margin:0 0 6px;'>{sig_count} de {len(exogenas)} significativas</p>", unsafe_allow_html=True)
+                for ex, pval, status in sigs:
+                    color = GREEN if status == "Significativa" else (RED if status == "No significativa" else "#B8860B")
+                    label = "SIG" if status == "Significativa" else ("NO SIG" if status == "No significativa" else "MARG")
+                    p_txt = f"p={pval:.3f}" if pval is not None else "p=N/A"
+                    st.markdown(f'<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;font-size:11px;"><span style="color:{TEXT}">{ex}</span><span style="color:{color};font-weight:600;">{label} ({p_txt})</span></div>', unsafe_allow_html=True)
 
 # =========================================================================
 # PANEL PRINCIPAL
@@ -813,11 +898,16 @@ with col_right:
             <p style="font-size:13px;color:{MUTED};margin:0;">Suba un archivo Excel para comenzar el analisis.</p>
         </div>
         """, unsafe_allow_html=True)
+    elif st.session_state.modelo_seleccionado is None:
+        st.markdown(f"""
+        <div style="background:{WHITE};border:1px solid {BORDER};border-radius:10px;padding:60px 32px;text-align:center;margin-top:40px;">
+            <p style="font-size:18px;font-weight:700;color:{NAVY};margin:0 0 8px;">Sin modelos disponibles</p>
+            <p style="font-size:13px;color:{MUTED};margin:0;">Ajuste los filtros de diagnostico para ver modelos.</p>
+        </div>
+        """, unsafe_allow_html=True)
     else:
         datos = st.session_state.modelos_data.get(st.session_state.modelo_seleccionado, {})
         meta_kpis = extraer_kpis_meta(st.session_state.meta_contexto)
-
-        # --- Header ejecutivo ---
         pais = meta_kpis.get('pais', '—')
         cartera = meta_kpis.get('cartera', '—')
         st.markdown(f"""
@@ -833,13 +923,9 @@ with col_right:
         </div>
         <div style="height:1px;background:{BORDER};margin:12px 0 16px;"></div>
         """, unsafe_allow_html=True)
-
-        # --- Navegacion (botones reales, no JS) ---
-        modelos_list, pruebas_dict_nav = construir_opciones_modelos()
-        current_idx = modelos_list.index(st.session_state.modelo_seleccionado)
-
+        modelos_list, pruebas_dict_nav, scores_dict_nav = construir_opciones_modelos()
+        current_idx = modelos_list.index(st.session_state.modelo_seleccionado) if st.session_state.modelo_seleccionado in modelos_list else 0
         tab1, tab2, tab3 = st.tabs(["Visualizacion", "Predicciones", "Diagnosticos"])
-
         # =====================================================================
         # TAB 1: VISUALIZACION
         # =====================================================================
@@ -864,7 +950,6 @@ with col_right:
                             st.rerun()
             else:
                 st.caption("Sin exogenas en este modelo.")
-
             df_end = datos.get('fecha_endogena')
             endogena_cols = datos.get('endogenas_cols', [])
             if df_end is not None and not df_end.empty and endogena_cols:
@@ -872,9 +957,7 @@ with col_right:
                 st.plotly_chart(fig, use_container_width=True)
             else:
                 st.info("No hay datos de predicciones.")
-
             st.markdown(divider(), unsafe_allow_html=True)
-
             st.markdown(section_title("Factor FWL por ano y escenario"), unsafe_allow_html=True)
             df_fwl_anual = datos.get('fwl_anual')
             if df_fwl_anual is not None and not df_fwl_anual.empty:
@@ -892,24 +975,19 @@ with col_right:
                     st.dataframe(df_fwl_anual, use_container_width=True, hide_index=True)
             else:
                 st.info("No hay datos de Factor FWL por Ano.")
-
             st.markdown(divider(), unsafe_allow_html=True)
-
             st.markdown(section_title("Factor FWL a 12 meses"), unsafe_allow_html=True)
             df_fwl = datos.get('fwl_12m')
             if df_fwl is not None and not df_fwl.empty:
                 st.plotly_chart(fig_fwl_12m(df_fwl), use_container_width=True)
             else:
                 st.info("No hay datos de FWL a 12 meses.")
-
             st.markdown(divider(), unsafe_allow_html=True)
-
             st.markdown(section_title("Factor FWL ponderado"), unsafe_allow_html=True)
             c1, c2, c3 = st.columns(3)
             with c1: peso_base = st.number_input("Peso Base", 0.0, 1.0, 0.33, 0.01, key="pw_base")
             with c2: peso_adverso = st.number_input("Peso Adverso", 0.0, 1.0, 0.33, 0.01, key="pw_adv")
             with c3: peso_optimista = st.number_input("Peso Optimista", 0.0, 1.0, 0.34, 0.01, key="pw_opt")
-
             suma = peso_base + peso_adverso + peso_optimista
             if abs(suma - 1.0) < 0.001:
                 st.markdown(pill("VALIDO", "#E8F5E9", GREEN), unsafe_allow_html=True)
@@ -917,7 +995,6 @@ with col_right:
                 st.markdown(pill(f"{1.0-suma:.2f} DISPONIBLE", "#FFF8E1", "#B8860B"), unsafe_allow_html=True)
             else:
                 st.markdown(pill(f"EXCEDE {suma-1.0:.2f}", "#FFEBEE", RED), unsafe_allow_html=True)
-
             if df_fwl is not None and not df_fwl.empty and suma <= 1.0:
                 pesos = {'base': peso_base, 'adverso': peso_adverso, 'optimista': peso_optimista}
                 df_pond = calcular_fwl_ponderado(df_fwl, pesos)
@@ -934,7 +1011,6 @@ with col_right:
                     st.info("No se pudo calcular el FWL ponderado.")
             elif suma > 1.0:
                 st.warning("Ajuste los pesos para que la suma no exceda 1.0")
-
         # =====================================================================
         # TAB 2: PREDICCIONES
         # =====================================================================
@@ -949,9 +1025,7 @@ with col_right:
                 if st.button("Ver Optimista", use_container_width=True): st.session_state.pred_filtro = "Optimista"
             with filtros[3]:
                 if st.button("Ver todas", use_container_width=True): st.session_state.pred_filtro = "Todas"
-
             st.markdown(f"<p style='font-size:11px;color:{MUTED};margin:8px 0;'>Filtro activo: <b>{st.session_state.pred_filtro}</b></p>", unsafe_allow_html=True)
-
             df_end = datos.get('fecha_endogena')
             endogena_cols = datos.get('endogenas_cols', [])
             if df_end is not None and not df_end.empty and endogena_cols:
@@ -962,7 +1036,6 @@ with col_right:
                     if col_str == 'BASE': base_col = col
                     elif col_str in ['ADVERSO', 'ADVERSA']: adv_col = col
                     elif col_str == 'OPTIMISTA': opt_col = col
-
                 df_pred = pd.DataFrame()
                 df_pred['Fecha'] = pd.to_datetime(df_end[fecha_col]).dt.strftime('%Y-%m-%d')
                 cols_export = ['Fecha']
@@ -975,23 +1048,21 @@ with col_right:
                 if opt_col and opt_col in df_end.columns and st.session_state.pred_filtro in ["Optimista", "Todas"]:
                     df_pred['Optimista'] = df_end[opt_col].astype(float).round(4)
                     cols_export.append('Optimista')
-
                 st.dataframe(df_pred[cols_export], use_container_width=True, hide_index=True, height=400)
                 csv = df_pred[cols_export].to_csv(index=False).encode('utf-8')
                 st.download_button("Descargar CSV", csv, f"predicciones_{st.session_state.modelo_seleccionado}.csv", "text/csv")
             else:
                 st.info("No hay datos de predicciones.")
-
         # =====================================================================
         # TAB 3: DIAGNOSTICOS
         # =====================================================================
         with tab3:
+            st.markdown(render_leyenda_scores(), unsafe_allow_html=True)
             pruebas = datos.get('pruebas')
             render_metricas_diagnostico(pruebas)
             st.markdown(divider(), unsafe_allow_html=True)
             render_diagnosticos_corporativo(pruebas)
             st.markdown(divider(), unsafe_allow_html=True)
-
             st.markdown(section_title("Distribucion de residuos"), unsafe_allow_html=True)
             residuos = datos.get('residuos_ind')
             if residuos is not None and not residuos.empty:
@@ -1004,8 +1075,6 @@ with col_right:
                     vals = residuos[res_col].dropna().astype(float)
                     media, std = vals.mean(), vals.std()
                     st.plotly_chart(fig_histograma_residuos(vals, media, std), use_container_width=True)
-
-                    # Estadisticas en cards horizontales, no st.metric apretadas
                     st.markdown(section_title("Estadisticas descriptivas"), unsafe_allow_html=True)
                     c1, c2, c3, c4, c5 = st.columns(5)
                     with c1: st.markdown(card_metric("Media", f"{media:.4f}"), unsafe_allow_html=True)
@@ -1015,9 +1084,7 @@ with col_right:
                     with c5: st.markdown(card_metric("Observaciones", f"{len(vals)}"), unsafe_allow_html=True)
             else:
                 st.info("No hay datos de residuos.")
-
             st.markdown(divider(), unsafe_allow_html=True)
-
             st.markdown(section_title("Coeficientes del modelo"), unsafe_allow_html=True)
             coefs = datos.get('coeficientes')
             if coefs is not None and not coefs.empty:
@@ -1031,7 +1098,6 @@ with col_right:
                             return f"{xv:.4e}" if xv < 0.001 else f"{xv:.4f}"
                         except: return str(x)
                     df_coef['P-valor'] = df_coef['P_value'].apply(fmt_pval)
-                df_coef = df_coef.rename(columns={'Variable': 'Variable'})
                 df_display = df_coef[['Tipo', 'Variable', 'Coeficiente', 'P-valor']]
                 st.plotly_chart(fig_barras_coeficientes(df_coef), use_container_width=True)
                 def color_pval(v):
@@ -1043,12 +1109,19 @@ with col_right:
                 else:
                     styler = styler.applymap(color_pval, subset=['P-valor'])
                 st.dataframe(styler, use_container_width=True, hide_index=True)
+                # --- Conteo de AR y MA ---
+                ar_count, ma_count = contar_ar_ma(coefs)
+                st.markdown(divider(), unsafe_allow_html=True)
+                st.markdown(section_title("Estructura del modelo"), unsafe_allow_html=True)
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.markdown(card_metric("Terminos AR", str(ar_count), BLUE), unsafe_allow_html=True)
+                with c2:
+                    st.markdown(card_metric("Terminos MA", str(ma_count), BLUE), unsafe_allow_html=True)
             else:
                 st.info("No hay datos de coeficientes.")
-
-        # --- Bottom nav bar (flechas), sticky opcional via switch en el sidebar ---
+        # --- Bottom nav bar ---
         nav_sticky = st.session_state.get("nav_sticky", True)
-
         if nav_sticky:
             st.markdown(f"""
             <style>
@@ -1072,7 +1145,6 @@ with col_right:
             """, unsafe_allow_html=True)
         else:
             st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
-
         with st.container(key="nav_flechas"):
             nav_cols = st.columns([1, 2, 1])
             with nav_cols[0]:
@@ -1080,12 +1152,15 @@ with col_right:
                     st.session_state.pending_modelo = modelos_list[current_idx - 1]
                     st.rerun()
             with nav_cols[1]:
-                st.markdown(f"""
-                <div style="text-align:center;padding:6px 4px;">
-                    <p style="font-size:10px;color:{MUTED};margin:0;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Modelo {current_idx + 1} de {len(modelos_list)}</p>
-                    <p style="font-size:13px;color:{NAVY};font-weight:700;margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{st.session_state.modelo_seleccionado}</p>
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown(
+                    f"""
+                    <div style="text-align:center;padding:6px 4px;">
+                        <p style="font-size:10px;color:{MUTED};margin:0;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Modelo {current_idx + 1} de {len(modelos_list)}</p>
+                        <p style="font-size:13px;color:{NAVY};font-weight:700;margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{st.session_state.modelo_seleccionado}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
             with nav_cols[2]:
                 if st.button("Siguiente →", disabled=current_idx == len(modelos_list) - 1, key="btn_next_real", use_container_width=True):
                     st.session_state.pending_modelo = modelos_list[current_idx + 1]
