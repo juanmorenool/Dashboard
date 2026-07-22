@@ -1623,3 +1623,4 @@ with col_right:
                 if st.button("→          ", disabled=current_idx == len(modelos_list) - 1, key="btn_next_real", use_container_width=True):
                     st.session_state.pending_modelo = modelos_list[current_idx + 1]
                     st.rerun()
+
