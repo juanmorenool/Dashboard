@@ -808,11 +808,29 @@ def render_metricas_diagnostico(pruebas_df):
         score, (bg, fg) = scores.get('heterocedasticidad', ('N/A', ESTADO_NEUTRAL))
         st.markdown(card_metric("Heterocedasticidad (Score)", score, fg if score != 'N/A' else TEXT), unsafe_allow_html=True)
 
+def es_favorito(nombre):
+    return nombre in st.session_state.get("favoritos", set())
+
+def alternar_favorito(nombre):
+    if nombre in st.session_state.favoritos:
+        st.session_state.favoritos.discard(nombre)
+    else:
+        st.session_state.favoritos.add(nombre)
+
+def boton_favorito(nombre, key_suffix=""):
+    """Renderiza un boton tipo estrella para marcar/desmarcar un modelo como favorito."""
+    activo = es_favorito(nombre)
+    label = "★ Favorito" if activo else "☆ Marcar favorito"
+    if st.button(label, key=f"fav_{key_suffix}_{nombre}", use_container_width=True):
+        alternar_favorito(nombre)
+        st.rerun()
+
 def construir_opciones_modelos():
     criterio = st.session_state.get("criterio_ordenamiento", "Pruebas aprobadas ↓")
     filtro_ljung = st.session_state.get("filtro_ljung", "Todos")
     filtro_jarque = st.session_state.get("filtro_jarque", "Todos")
     filtro_hetero = st.session_state.get("filtro_hetero", "Todos")
+    filtro_favoritos = st.session_state.get("filtro_favoritos", False)
     modelos_con_pruebas = []
     for nombre, datos in st.session_state.modelos_data.items():
         pruebas = datos.get('pruebas')
@@ -843,6 +861,8 @@ def construir_opciones_modelos():
                 pasa_filtro = False
             elif filtro_hetero == "Solo A" and score_hetero != 'A':
                 pasa_filtro = False
+        if filtro_favoritos and nombre not in st.session_state.get("favoritos", set()):
+            pasa_filtro = False
         if pasa_filtro:
             score_global, _ = calcular_score_global(pruebas)
             modelos_con_pruebas.append((nombre, apr, tot, scores, score_global))
@@ -866,7 +886,8 @@ def construir_opciones_modelos():
 
 def label_modelo(nombre, pruebas_dict, scores_dict=None, global_dict=None):
     apr, tot = pruebas_dict.get(nombre, (0, 3))
-    label = f"{nombre}  ({apr}/{tot})"
+    prefijo = "★ " if es_favorito(nombre) else ""
+    label = f"{prefijo}{nombre}  ({apr}/{tot})"
     if scores_dict and nombre in scores_dict:
         scores = scores_dict[nombre]
         mini_scores = []
@@ -989,9 +1010,73 @@ def render_resumen_ejecutivo():
     with ac2:
         st.markdown(card_metric("Promedio terminos MA", f"{df_res['MA'].mean():.2f}" if total else "0", BLUE), unsafe_allow_html=True)
     st.markdown("<div style='height:24px;'></div>", unsafe_allow_html=True)
-    if st.button("Explorar modelos", key="btn_explorar_modelos", use_container_width=True):
-        st.session_state.vista_resumen = False
-        st.rerun()
+    bexp1, bexp2 = st.columns(2)
+    with bexp1:
+        if st.button("Explorar modelos", key="btn_explorar_modelos", use_container_width=True):
+            st.session_state.vista_resumen = False
+            st.rerun()
+    with bexp2:
+        n_fav = len([m for m in st.session_state.get("favoritos", set()) if m in st.session_state.modelos_data])
+        if st.button(f"★ Ver favoritos ({n_fav})", key="btn_ver_favoritos_resumen", use_container_width=True):
+            st.session_state.vista_resumen = False
+            st.session_state.vista_favoritos = True
+            st.rerun()
+
+def render_vista_favoritos():
+    favoritos = st.session_state.get("favoritos", set())
+    modelos_data = st.session_state.modelos_data
+    favoritos_validos = [m for m in favoritos if m in modelos_data]
+    st.markdown(f"""
+    <div style="margin-bottom:8px;">
+        <p style="font-size:20px;font-weight:700;color:{NAVY};margin:0;">★ Modelos favoritos</p>
+        <p style="font-size:12px;color:{MUTED};margin:4px 0 0;">{len(favoritos_validos)} modelo(s) marcados como favoritos.</p>
+    </div>
+    <div style="height:1px;background:{BORDER};margin:12px 0 20px;"></div>
+    """, unsafe_allow_html=True)
+    bcol1, bcol2 = st.columns([1, 5])
+    with bcol1:
+        if st.button("← Volver", key="btn_volver_de_favoritos", use_container_width=True):
+            st.session_state.vista_favoritos = False
+            st.session_state.vista_resumen = True
+            st.rerun()
+    if not favoritos_validos:
+        st.info("Aun no ha marcado ningun modelo como favorito. Abra un modelo y presione '☆ Marcar favorito' en la barra lateral, o use el boton de estrella en cada tarjeta.")
+        return
+    filas = []
+    for nombre in favoritos_validos:
+        datos = modelos_data.get(nombre, {})
+        pruebas = datos.get('pruebas')
+        score_global, _ = calcular_score_global(pruebas)
+        filas.append((nombre, score_global))
+    filas.sort(key=lambda x: (-(x[1] if x[1] is not None else -1), x[0]))
+    n_cols = 3
+    for i in range(0, len(filas), n_cols):
+        fila_cols = st.columns(n_cols)
+        for j, (nombre, score_global) in enumerate(filas[i:i + n_cols]):
+            with fila_cols[j]:
+                etiqueta_g, color_g, bg_g = clasificar_score_global(score_global)
+                datos = modelos_data.get(nombre, {})
+                coefs = datos.get('coeficientes')
+                ar_count, ma_count = contar_ar_ma(coefs) if coefs is not None else (0, 0)
+                obs = datos.get('observaciones', 0)
+                st.markdown(f"""
+                <div style="background:{WHITE};border:1px solid {BORDER};border-radius:8px;padding:16px;margin-bottom:10px;">
+                    <p style="font-size:13px;font-weight:700;color:{NAVY};margin:0 0 8px;">★ {nombre}</p>
+                    {score_global_badge(score_global)}
+                    <p style="font-size:11px;color:{MUTED};margin:10px 0 0;">{obs} observaciones · AR {ar_count} / MA {ma_count}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                bc1, bc2 = st.columns(2)
+                with bc1:
+                    if st.button("Abrir", key=f"abrir_fav_{nombre}", use_container_width=True):
+                        st.session_state.modelo_seleccionado = nombre
+                        st.session_state.vista_favoritos = False
+                        st.session_state.vista_resumen = False
+                        st.rerun()
+                with bc2:
+                    if st.button("Quitar ★", key=f"quitar_fav_{nombre}", use_container_width=True):
+                        alternar_favorito(nombre)
+                        st.rerun()
 
 def render_seccion_coeficientes(datos, key_prefix="diag"):
     st.markdown(section_title("Coeficientes del modelo"), unsafe_allow_html=True)
@@ -1040,6 +1125,7 @@ for key, default in [
     ("pending_modelo", None),
     ("filtro_ljung", "Todos"), ("filtro_jarque", "Todos"), ("filtro_hetero", "Todos"),
     ("vista_resumen", True), ("comparar_sel", []),
+    ("favoritos", set()), ("filtro_favoritos", False), ("vista_favoritos", False),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -1195,6 +1281,10 @@ with col_left:
         filtro_hetero = st.selectbox("", ["Todos", "A o B (Cumple)", "A, B o C", "Solo A"], 
                                       index=0, key="filtro_hetero_sel", label_visibility="collapsed")
         st.session_state.filtro_hetero = filtro_hetero
+        st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
+        filtro_favoritos = st.checkbox("★ Solo favoritos", key="filtro_favoritos_sel",
+                                        value=st.session_state.get("filtro_favoritos", False))
+        st.session_state.filtro_favoritos = filtro_favoritos
         st.markdown(divider(), unsafe_allow_html=True)
         modelos_list, pruebas_dict, scores_dict, global_dict = construir_opciones_modelos()
         if st.session_state.pending_modelo is not None and st.session_state.pending_modelo in modelos_list:
@@ -1208,7 +1298,10 @@ with col_left:
         else:
             idx = modelos_list.index(st.session_state.modelo_seleccionado) if st.session_state.modelo_seleccionado in modelos_list else 0
             seleccion = st.selectbox("Modelo", opciones, index=idx, key="sel_modelo")
-            st.session_state.modelo_seleccionado = seleccion.split("  (")[0]
+            nombre_parseado = seleccion.split("  (")[0]
+            if nombre_parseado.startswith("★ "):
+                nombre_parseado = nombre_parseado[2:]
+            st.session_state.modelo_seleccionado = nombre_parseado
         st.markdown(divider(), unsafe_allow_html=True)
         st.toggle("Fijar flechas de navegacion", key="nav_sticky",
                   help="Mantiene los botones Anterior/Siguiente siempre visibles, flotando sobre la pagina al hacer scroll.")
@@ -1217,6 +1310,8 @@ with col_left:
             st.markdown(f"<p style='font-size:11px;font-weight:600;color:{NAVY};margin:12px 0 4px;'>MODELO ACTUAL</p>", unsafe_allow_html=True)
             st.markdown(f"<p style='font-size:14px;font-weight:700;color:{NAVY};margin:0;'>{st.session_state.modelo_seleccionado}</p>", unsafe_allow_html=True)
             st.markdown(f"<p style='font-size:11px;color:{MUTED};margin:4px 0 0;'>{datos.get('observaciones', 0)} observaciones</p>", unsafe_allow_html=True)
+            st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
+            boton_favorito(st.session_state.modelo_seleccionado, key_suffix="sidebar")
             exogenas = datos.get('exogenas_nombres', [])
             if exogenas:
                 st.markdown(f"<p style='font-size:11px;font-weight:600;color:{NAVY};margin:12px 0 6px;'>EXOGENAS</p>", unsafe_allow_html=True)
@@ -1241,6 +1336,8 @@ with col_right:
             <p style="font-size:13px;color:{MUTED};margin:0;">Suba un archivo Excel para comenzar el analisis.</p>
         </div>
         """, unsafe_allow_html=True)
+    elif st.session_state.vista_favoritos:
+        render_vista_favoritos()
     elif st.session_state.vista_resumen:
         render_resumen_ejecutivo()
     elif st.session_state.modelo_seleccionado is None:
@@ -1272,9 +1369,18 @@ with col_right:
         </div>
         <div style="height:1px;background:{BORDER};margin:12px 0 16px;"></div>
         """, unsafe_allow_html=True)
-        if st.button("Ver resumen de la corrida", key="btn_ver_resumen"):
-            st.session_state.vista_resumen = True
-            st.rerun()
+        hcol1, hcol2, hcol3 = st.columns([1.4, 1.1, 1])
+        with hcol1:
+            if st.button("Ver resumen de la corrida", key="btn_ver_resumen", use_container_width=True):
+                st.session_state.vista_resumen = True
+                st.rerun()
+        with hcol2:
+            n_fav = len([m for m in st.session_state.get("favoritos", set()) if m in st.session_state.modelos_data])
+            if st.button(f"★ Ver favoritos ({n_fav})", key="btn_ver_favoritos_detalle", use_container_width=True):
+                st.session_state.vista_favoritos = True
+                st.rerun()
+        with hcol3:
+            boton_favorito(st.session_state.modelo_seleccionado, key_suffix="detalle")
         modelos_list, pruebas_dict_nav, scores_dict_nav, global_dict_nav = construir_opciones_modelos()
         current_idx = modelos_list.index(st.session_state.modelo_seleccionado) if st.session_state.modelo_seleccionado in modelos_list else 0
         tab_resumen, tab1, tab2, tab3, tab4 = st.tabs(["Resumen Modelo", "Visualizacion", "Predicciones", "Diagnosticos", "Comparar"])
