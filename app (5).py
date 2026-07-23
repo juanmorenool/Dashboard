@@ -5,6 +5,7 @@ import numpy as np
 import plotly.graph_objects as go
 from scipy import stats
 import json
+import os
 import openpyxl
 
 # =============================================================================
@@ -149,6 +150,21 @@ def inject_css():
         position: fixed !important; top: -9999px !important; left: -9999px !important;
         height: 1px !important; width: 1px !important; overflow: hidden !important;
     }}
+    /* --- Encabezados desplegables del sidebar --- */
+    section[data-testid="stSidebar"] button[kind="secondary"][class*="st-key-btn_sec_"],
+    section[data-testid="stSidebar"] .st-key-btn_sec_contexto button,
+    section[data-testid="stSidebar"] .st-key-btn_sec_orden button,
+    section[data-testid="stSidebar"] .st-key-btn_sec_exogenas button {{
+        background: none !important; border: none !important; box-shadow: none !important;
+        padding: 4px 0 !important; text-align: left !important; justify-content: flex-start !important;
+        font-size: 13px !important; font-weight: 700 !important; color: {NAVY} !important;
+        text-transform: uppercase; letter-spacing: 0.5px;
+    }}
+    section[data-testid="stSidebar"] .st-key-btn_sec_contexto button:hover,
+    section[data-testid="stSidebar"] .st-key-btn_sec_orden button:hover,
+    section[data-testid="stSidebar"] .st-key-btn_sec_exogenas button:hover {{
+        color: {BLUE} !important;
+    }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -183,6 +199,48 @@ def divider():
 
 def section_title(text):
     return f"<p style='font-size:13px;font-weight:700;color:{NAVY};margin:0 0 12px;text-transform:uppercase;letter-spacing:0.5px;'>{text}</p>"
+
+# =============================================================================
+# PREFERENCIAS DEL SIDEBAR (persistentes entre sesiones)
+# =============================================================================
+PREFS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".sidebar_prefs.json")
+
+# Claves de session_state que se guardan/restauran en disco
+CLAVES_PREFS_SIDEBAR = [
+    "sec_contexto", "sec_orden", "sec_exogenas",       # estado desplegado/colapsado
+    "criterio_ordenamiento",
+    "filtro_ljung", "filtro_jarque", "filtro_hetero",
+    "filtro_favoritos", "nav_sticky",
+]
+
+def cargar_prefs_sidebar():
+    try:
+        with open(PREFS_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def guardar_prefs_sidebar():
+    prefs = {clave: st.session_state.get(clave) for clave in CLAVES_PREFS_SIDEBAR}
+    try:
+        with open(PREFS_PATH, "w", encoding="utf-8") as f:
+            json.dump(prefs, f)
+    except Exception:
+        pass
+
+def encabezado_colapsable(titulo, key):
+    """Renderiza un encabezado de seccion tipo acordeon para el sidebar.
+    El estado (abierto/cerrado) se guarda en session_state y se persiste
+    en disco (.sidebar_prefs.json) para recordarse entre sesiones."""
+    if key not in st.session_state:
+        st.session_state[key] = True
+    abierto = st.session_state[key]
+    icono = "▾" if abierto else "▸"
+    if st.button(f"{icono}  {titulo}", key=f"btn_{key}", use_container_width=True):
+        st.session_state[key] = not abierto
+        guardar_prefs_sidebar()
+        st.rerun()
+    return st.session_state[key]
 
 # =============================================================================
 # PARSER
@@ -920,14 +978,13 @@ def render_columna_comparacion(nombre):
         s, _ = scores.get('heterocedasticidad', ('N/A', ESTADO_NEUTRAL))
         st.markdown(card_metric("Heterocedast.", s), unsafe_allow_html=True)
     st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-    df_end = datos.get('fecha_endogena')
-    endogena_cols = datos.get('endogenas_cols', [])
-    if df_end is not None and not df_end.empty and endogena_cols:
-        fig = fig_predicciones(df_end, endogena_cols, None, [], nombre)
-        fig.update_layout(height=280, showlegend=False)
+    df_fwl_comp = datos.get('fwl_12m')
+    if df_fwl_comp is not None and not df_fwl_comp.empty:
+        fig = fig_fwl_12m(df_fwl_comp)
+        fig.update_layout(height=280, showlegend=False, title="Factor FWL a 12 Meses")
         st.plotly_chart(fig, use_container_width=True, key=f"cmp_fig_{nombre}")
     else:
-        st.caption("Sin datos de predicciones.")
+        st.caption("Sin datos de FWL a 12 meses.")
     coefs = datos.get('coeficientes')
     ar_count, ma_count = contar_ar_ma(coefs) if coefs is not None else (0, 0)
     exogenas = datos.get('exogenas_nombres', [])
@@ -1118,14 +1175,24 @@ def render_seccion_coeficientes(datos, key_prefix="diag"):
 # =============================================================================
 # SESSION STATE
 # =============================================================================
+_prefs_guardadas = cargar_prefs_sidebar()
 for key, default in [
     ("uploaded_file", None), ("modelos_data", {}), ("meta_contexto", None),
-    ("modelo_seleccionado", None), ("criterio_ordenamiento", "Pruebas aprobadas ↓"),
-    ("exog_sel", {}), ("pred_filtro", "Todas"), ("nav_sticky", True),
+    ("modelo_seleccionado", None),
+    ("criterio_ordenamiento", _prefs_guardadas.get("criterio_ordenamiento", "Pruebas aprobadas ↓")),
+    ("exog_sel", {}), ("pred_filtro", "Todas"),
+    ("nav_sticky", _prefs_guardadas.get("nav_sticky", True)),
     ("pending_modelo", None),
-    ("filtro_ljung", "Todos"), ("filtro_jarque", "Todos"), ("filtro_hetero", "Todos"),
+    ("filtro_ljung", _prefs_guardadas.get("filtro_ljung", "Todos")),
+    ("filtro_jarque", _prefs_guardadas.get("filtro_jarque", "Todos")),
+    ("filtro_hetero", _prefs_guardadas.get("filtro_hetero", "Todos")),
     ("vista_resumen", True), ("comparar_sel", []),
-    ("favoritos", set()), ("filtro_favoritos", False), ("vista_favoritos", False),
+    ("favoritos", set()),
+    ("filtro_favoritos", _prefs_guardadas.get("filtro_favoritos", False)),
+    ("vista_favoritos", False),
+    ("sec_contexto", _prefs_guardadas.get("sec_contexto", True)),
+    ("sec_orden", _prefs_guardadas.get("sec_orden", True)),
+    ("sec_exogenas", _prefs_guardadas.get("sec_exogenas", True)),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -1237,54 +1304,59 @@ with col_left:
     if st.session_state.modelos_data:
         st.markdown(divider(), unsafe_allow_html=True)
         meta = st.session_state.meta_contexto
-        if meta:
-            meta_kpis = extraer_kpis_meta(meta)
-            st.markdown(section_title("Contexto de la corrida"), unsafe_allow_html=True)
-            c1, c2 = st.columns(2)
-            with c1:
-                pais_nombre = meta_kpis.get('pais', '—')
-                codigo_iso = BANDERAS_PAISES.get(pais_nombre, pais_nombre).upper()
-                bandera_html = obtener_bandera_pais(pais_nombre)
-                valor_pais = f"{bandera_html}{codigo_iso}"
-                st.markdown(card_kpi("Pais", valor_pais), unsafe_allow_html=True)
-            with c2:
-                st.markdown(card_kpi("Ventana media movil", meta_kpis.get('ventana_mm', '—')), unsafe_allow_html=True)
-            c1, c2 = st.columns(2)
-            with c1:
-                st.markdown(card_kpi("Cartera", meta_kpis.get('cartera', '—'), accent=BLUE), unsafe_allow_html=True)
-            with c2:
-                fwl_range = f"{meta_kpis.get('fwl_min', '?')} – {meta_kpis.get('fwl_max', '?')}"
-                st.markdown(card_kpi("Rango FWL", fwl_range, accent=GREEN), unsafe_allow_html=True)
-            c1, c2 = st.columns(2)
-            with c1:
-                st.markdown(card_kpi("Modo endogena", meta_kpis.get('modo_endogena', '—')), unsafe_allow_html=True)
-            with c2:
-                st.markdown(card_kpi("Top exportados", meta_kpis.get('top_exportar', '—')), unsafe_allow_html=True)
-        else:
-            st.caption("Sin metadata embebida.")
+        if encabezado_colapsable("Contexto de la corrida", "sec_contexto"):
+            if meta:
+                meta_kpis = extraer_kpis_meta(meta)
+                c1, c2 = st.columns(2)
+                with c1:
+                    pais_nombre = meta_kpis.get('pais', '—')
+                    codigo_iso = BANDERAS_PAISES.get(pais_nombre, pais_nombre).upper()
+                    bandera_html = obtener_bandera_pais(pais_nombre)
+                    valor_pais = f"{bandera_html}{codigo_iso}"
+                    st.markdown(card_kpi("Pais", valor_pais), unsafe_allow_html=True)
+                with c2:
+                    st.markdown(card_kpi("Ventana media movil", meta_kpis.get('ventana_mm', '—')), unsafe_allow_html=True)
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.markdown(card_kpi("Cartera", meta_kpis.get('cartera', '—'), accent=BLUE), unsafe_allow_html=True)
+                with c2:
+                    fwl_range = f"{meta_kpis.get('fwl_min', '?')} – {meta_kpis.get('fwl_max', '?')}"
+                    st.markdown(card_kpi("Rango FWL", fwl_range, accent=GREEN), unsafe_allow_html=True)
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.markdown(card_kpi("Modo endogena", meta_kpis.get('modo_endogena', '—')), unsafe_allow_html=True)
+                with c2:
+                    st.markdown(card_kpi("Top exportados", meta_kpis.get('top_exportar', '—')), unsafe_allow_html=True)
+            else:
+                st.caption("Sin metadata embebida.")
         st.markdown(divider(), unsafe_allow_html=True)
-        criterio = st.radio("Ordenar por:", ["Nombre (A-Z)", "Pruebas aprobadas ↓", "Pruebas aprobadas ↑",
-                                              "Score global ↓", "Score global ↑"],
-                            index=1, key="criterio_orden")
-        st.session_state.criterio_ordenamiento = criterio
-        # --- FILTROS DE DIAGNOSTICO ---
-        st.markdown(section_title("Filtros de Diagnostico"), unsafe_allow_html=True)
-        st.markdown(f"<p style='font-size:10px;color:{MUTED};margin:0 0 4px;'>Ljung-Box</p>", unsafe_allow_html=True)
-        filtro_ljung = st.selectbox("", ["Todos", "A o B (Cumple)", "A, B o C", "Solo A"], 
-                                     index=0, key="filtro_ljung_sel", label_visibility="collapsed")
-        st.session_state.filtro_ljung = filtro_ljung
-        st.markdown(f"<p style='font-size:10px;color:{MUTED};margin:8px 0 4px;'>Jarque-Bera</p>", unsafe_allow_html=True)
-        filtro_jarque = st.selectbox("", ["Todos", "A o B (Cumple)", "A, B o C", "Solo A"], 
-                                      index=0, key="filtro_jarque_sel", label_visibility="collapsed")
-        st.session_state.filtro_jarque = filtro_jarque
-        st.markdown(f"<p style='font-size:10px;color:{MUTED};margin:8px 0 4px;'>Heterocedasticidad</p>", unsafe_allow_html=True)
-        filtro_hetero = st.selectbox("", ["Todos", "A o B (Cumple)", "A, B o C", "Solo A"], 
-                                      index=0, key="filtro_hetero_sel", label_visibility="collapsed")
-        st.session_state.filtro_hetero = filtro_hetero
-        st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
-        filtro_favoritos = st.checkbox("★ Solo favoritos", key="filtro_favoritos_sel",
-                                        value=st.session_state.get("filtro_favoritos", False))
-        st.session_state.filtro_favoritos = filtro_favoritos
+        # --- ORDENAR Y FILTROS DE DIAGNOSTICO (colapsable) ---
+        if encabezado_colapsable("Ordenar y Filtrar", "sec_orden"):
+            criterio = st.radio("Ordenar por:", ["Nombre (A-Z)", "Pruebas aprobadas ↓", "Pruebas aprobadas ↑",
+                                                  "Score global ↓", "Score global ↑"],
+                                index=["Nombre (A-Z)", "Pruebas aprobadas ↓", "Pruebas aprobadas ↑",
+                                       "Score global ↓", "Score global ↑"].index(st.session_state.criterio_ordenamiento),
+                                key="criterio_orden")
+            st.session_state.criterio_ordenamiento = criterio
+            st.markdown(f"<p style='font-size:10px;color:{MUTED};margin:8px 0 4px;'>Ljung-Box</p>", unsafe_allow_html=True)
+            filtro_ljung = st.selectbox("", ["Todos", "A o B (Cumple)", "A, B o C", "Solo A"],
+                                         index=["Todos", "A o B (Cumple)", "A, B o C", "Solo A"].index(st.session_state.filtro_ljung),
+                                         key="filtro_ljung_sel", label_visibility="collapsed")
+            st.session_state.filtro_ljung = filtro_ljung
+            st.markdown(f"<p style='font-size:10px;color:{MUTED};margin:8px 0 4px;'>Jarque-Bera</p>", unsafe_allow_html=True)
+            filtro_jarque = st.selectbox("", ["Todos", "A o B (Cumple)", "A, B o C", "Solo A"],
+                                          index=["Todos", "A o B (Cumple)", "A, B o C", "Solo A"].index(st.session_state.filtro_jarque),
+                                          key="filtro_jarque_sel", label_visibility="collapsed")
+            st.session_state.filtro_jarque = filtro_jarque
+            st.markdown(f"<p style='font-size:10px;color:{MUTED};margin:8px 0 4px;'>Heterocedasticidad</p>", unsafe_allow_html=True)
+            filtro_hetero = st.selectbox("", ["Todos", "A o B (Cumple)", "A, B o C", "Solo A"],
+                                          index=["Todos", "A o B (Cumple)", "A, B o C", "Solo A"].index(st.session_state.filtro_hetero),
+                                          key="filtro_hetero_sel", label_visibility="collapsed")
+            st.session_state.filtro_hetero = filtro_hetero
+            st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
+            filtro_favoritos = st.checkbox("★ Solo favoritos", key="filtro_favoritos_sel",
+                                            value=st.session_state.get("filtro_favoritos", False))
+            st.session_state.filtro_favoritos = filtro_favoritos
         st.markdown(divider(), unsafe_allow_html=True)
         modelos_list, pruebas_dict, scores_dict, global_dict = construir_opciones_modelos()
         if st.session_state.pending_modelo is not None and st.session_state.pending_modelo in modelos_list:
@@ -1305,6 +1377,8 @@ with col_left:
         st.markdown(divider(), unsafe_allow_html=True)
         st.toggle("Fijar flechas de navegacion", key="nav_sticky",
                   help="Mantiene los botones Anterior/Siguiente siempre visibles, flotando sobre la pagina al hacer scroll.")
+        # Persiste en disco cualquier cambio de orden/filtros/nav_sticky de este rerun.
+        guardar_prefs_sidebar()
         if st.session_state.modelo_seleccionado:
             datos = st.session_state.modelos_data.get(st.session_state.modelo_seleccionado, {})
             st.markdown(f"<p style='font-size:11px;font-weight:600;color:{NAVY};margin:12px 0 4px;'>MODELO ACTUAL</p>", unsafe_allow_html=True)
@@ -1314,16 +1388,17 @@ with col_left:
             boton_favorito(st.session_state.modelo_seleccionado, key_suffix="sidebar")
             exogenas = datos.get('exogenas_nombres', [])
             if exogenas:
-                st.markdown(f"<p style='font-size:11px;font-weight:600;color:{NAVY};margin:12px 0 6px;'>EXOGENAS</p>", unsafe_allow_html=True)
-                coefs = datos.get('coeficientes')
-                sigs = obtener_significancia_exogenas(coefs, exogenas)
-                sig_count = sum(1 for _, _, s in sigs if s == "Significativa")
-                st.markdown(f"<p style='font-size:10px;color:{MUTED};margin:0 0 6px;'>{sig_count} de {len(exogenas)} significativas</p>", unsafe_allow_html=True)
-                for ex, pval, status in sigs:
-                    color = GREEN if status == "Significativa" else (RED if status == "No significativa" else "#B8860B")
-                    label = "SIG" if status == "Significativa" else ("NO SIG" if status == "No significativa" else "MARG")
-                    p_txt = f"p={pval:.3f}" if pval is not None else "p=N/A"
-                    st.markdown(f'<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;font-size:11px;"><span style="color:{TEXT}">{ex}</span><span style="color:{color};font-weight:600;">{label} ({p_txt})</span></div>', unsafe_allow_html=True)
+                st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+                if encabezado_colapsable("Exogenas", "sec_exogenas"):
+                    coefs = datos.get('coeficientes')
+                    sigs = obtener_significancia_exogenas(coefs, exogenas)
+                    sig_count = sum(1 for _, _, s in sigs if s == "Significativa")
+                    st.markdown(f"<p style='font-size:10px;color:{MUTED};margin:0 0 6px;'>{sig_count} de {len(exogenas)} significativas</p>", unsafe_allow_html=True)
+                    for ex, pval, status in sigs:
+                        color = GREEN if status == "Significativa" else (RED if status == "No significativa" else "#B8860B")
+                        label = "SIG" if status == "Significativa" else ("NO SIG" if status == "No significativa" else "MARG")
+                        p_txt = f"p={pval:.3f}" if pval is not None else "p=N/A"
+                        st.markdown(f'<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;font-size:11px;"><span style="color:{TEXT}">{ex}</span><span style="color:{color};font-weight:600;">{label} ({p_txt})</span></div>', unsafe_allow_html=True)
 
 # =========================================================================
 # PANEL PRINCIPAL
