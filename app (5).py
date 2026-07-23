@@ -36,7 +36,6 @@ SCORE_COLORS = {
     'D': ("#FFEBEE", "#B83232"),
 }
 
-# --- Score global (ponderacion de diagnosticos) ---
 SCORE_NUM_MAP = {'A': 10.0, 'B': 7.5, 'C': 5.0, 'D': 2.5}
 PESOS_SCORE_GLOBAL = {'ljung_box': 0.40, 'jarque_bera': 0.30, 'heterocedasticidad': 0.30}
 
@@ -45,18 +44,15 @@ PAISES_MAP = {
     'panama': 'Panamá',
     'panamá': 'Panamá',
     'costa rica': 'Costa Rica',
-    # --- códigos cortos que vienen en la metadata embebida ---
     'co': 'Colombia',
     'pa': 'Panamá',
     'cr': 'Costa Rica',
 }
 
-# --- Codigos ISO 3166-1 alpha-2 para renderizar banderas (via flagcdn.com) ---
 BANDERAS_PAISES = {
     'Colombia': 'co',
     'Panamá': 'pa',
     'Costa Rica': 'cr',
-    # --- fallback por si llega el código crudo sin normalizar ---
     'co': 'co',
     'pa': 'pa',
     'cr': 'cr',
@@ -66,15 +62,11 @@ BANDERAS_PAISES = {
 }
 
 def obtener_bandera_pais(pais, ancho=20):
-    """Devuelve el tag <img> con la bandera del pais dado.
-    Acepta nombre completo (ej. 'Colombia') o código ISO (ej. 'CO', 'co')."""
     if not pais:
         return ""
     pais_str = str(pais).strip()
-    # Primero intenta por nombre completo; si falla, usa el código directo
     codigo = BANDERAS_PAISES.get(pais_str)
     if not codigo:
-        # Último fallback: intentar con el valor en minúsculas
         codigo = BANDERAS_PAISES.get(pais_str.lower())
     if not codigo:
         return ""
@@ -89,155 +81,286 @@ CARTERAS_MAP = {
     'micro': 'Microcrédito',
 }
 
-def inject_css():
+# =============================================================================
+# SIDEBAR COLAPSABLE — COMPONENTE REUTILIZABLE
+# =============================================================================
+SIDEBAR_WIDTH = 340
+
+def inject_collapsible_sidebar_css():
+    is_open = st.session_state.get('sidebar_open', True)
     st.markdown(f"""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-    html, body, [class*="css"], .stApp, .stMarkdown, .stDataFrame, .stButton,
-    .stSelectbox, .stTextInput, .stNumberInput, .stTabs {{
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
-    }}
-    #MainMenu {{ visibility: hidden; }}
-    footer {{ visibility: hidden; }}
-    header[data-testid="stHeader"] {{ background: transparent; }}
-    .block-container {{ padding-top: 0.5rem; padding-bottom: 2rem; max-width: 1400px; }}
-    .stApp {{ background-color: {BG}; }}
-    section[data-testid="stSidebar"] {{
-        background-color: {WHITE}; border-right: 1px solid {BORDER};
-        min-width: 260px !important; max-width: 260px !important;
-    }}
-    section[data-testid="stSidebar"] .block-container {{ padding: 16px; }}
-    h1 {{ color: {NAVY} !important; font-weight: 700 !important; font-size: 22px !important; }}
-    h2 {{ color: {NAVY} !important; font-weight: 600 !important; font-size: 16px !important; margin-top: 0.2rem !important; }}
-    h3 {{ color: {NAVY} !important; font-weight: 600 !important; font-size: 14px !important;
-         border-left: 3px solid {BLUE}; padding-left: 10px; margin-top: 0.3rem !important; }}
-    .stTabs [data-baseweb="tab-list"] {{ gap: 2px; border-bottom: 1px solid {BORDER}; }}
-    .stTabs [data-baseweb="tab"] {{
-        background-color: transparent; border-radius: 6px 6px 0 0;
-        padding: 8px 16px; color: {MUTED}; font-weight: 500; font-size: 13px;
-    }}
-    .stTabs [aria-selected="true"] {{
-        background-color: {TINT} !important; color: {NAVY} !important; font-weight: 600;
-    }}
-    div[data-testid="stDataFrame"] {{ border: 1px solid {BORDER}; border-radius: 6px; }}
-    section[data-testid="stSidebar"] {{ position: sticky; top: 0; height: 100vh; overflow-y: auto; }}
-    .bottom-bar {{
-        position: fixed; bottom: 0; left: 260px; right: 0;
-        background: {WHITE}; border-top: 1px solid {BORDER};
-        padding: 0; z-index: 9999;
-        display: flex; align-items: center; justify-content: center;
-        box-shadow: 0 -2px 12px rgba(0,0,0,0.04);
-    }}
-    .bottom-bar-inner {{
-        display: flex; align-items: center; gap: 0;
-        max-width: 600px; width: 100%;
-    }}
-    .nav-btn {{
-        background: none; border: none; color: {BLUE}; font-weight: 600; font-size: 13px;
-        padding: 14px 24px; cursor: pointer; letter-spacing: 0.3px;
-        border-right: 1px solid {BORDER}; flex: 1; text-align: center;
-        transition: background 0.15s;
-    }}
-    .nav-btn:hover {{ background: {TINT}; }}
-    .nav-btn:disabled {{ color: {LTGRAY}; cursor: not-allowed; background: none; }}
-    .nav-center {{
-        padding: 10px 32px; text-align: center; flex: 2;
-        border-right: 1px solid {BORDER};
-    }}
-    .nav-center-top {{ font-size: 12px; color: {MUTED}; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }}
-    .nav-center-bot {{ font-size: 14px; color: {NAVY}; font-weight: 700; margin-top: 2px; }}
-    .st-key-kb_hidden {{
-        position: fixed !important; top: -9999px !important; left: -9999px !important;
-        height: 1px !important; width: 1px !important; overflow: hidden !important;
-    }}
-    /* --- Encabezados desplegables del sidebar --- */
-    section[data-testid="stSidebar"] button[kind="secondary"][class*="st-key-btn_sec_"],
-    section[data-testid="stSidebar"] .st-key-btn_sec_contexto button,
-    section[data-testid="stSidebar"] .st-key-btn_sec_orden button,
-    section[data-testid="stSidebar"] .st-key-btn_sec_exogenas button {{
-        background: none !important; border: none !important; box-shadow: none !important;
-        padding: 4px 0 !important; text-align: left !important; justify-content: flex-start !important;
-        font-size: 13px !important; font-weight: 700 !important; color: {NAVY} !important;
-        text-transform: uppercase; letter-spacing: 0.5px;
-    }}
-    section[data-testid="stSidebar"] .st-key-btn_sec_contexto button:hover,
-    section[data-testid="stSidebar"] .st-key-btn_sec_orden button:hover,
-    section[data-testid="stSidebar"] .st-key-btn_sec_exogenas button:hover {{
-        color: {BLUE} !important;
-    }}
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        html, body, [class*="css"], .stApp, .stMarkdown, .stDataFrame, .stButton,
+        .stSelectbox, .stTextInput, .stNumberInput, .stTabs {{
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+        }}
+        #MainMenu {{ visibility: hidden; }}
+        footer {{ visibility: hidden; }}
+        header[data-testid="stHeader"] {{ background: transparent; }}
 
-    /* ============================================================
-       SIDEBAR COLAPSABLE PERSONALIZADA (reemplaza st.sidebar)
-       ============================================================ */
-    .st-key-app_shell {{
-        display: flex;
-        align-items: flex-start;
-        gap: 0px;
-        width: 100%;
-    }}
-    .st-key-app_shell > div {{
-        display: flex;
-        align-items: flex-start;
-        width: 100%;
-    }}
-    .st-key-sidebar_panel {{
-        flex: 0 0 340px;
-        width: 340px;
-        max-width: 340px;
-        overflow: hidden;
-        background: {WHITE};
-        border: 1px solid {BORDER};
-        border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(11,37,69,0.05);
-        padding: 18px 16px;
-        margin-right: 14px;
-        box-sizing: border-box;
-        transition: flex-basis 300ms ease, width 300ms ease, max-width 300ms ease,
-                    opacity 250ms ease, padding 300ms ease, margin-right 300ms ease,
-                    border-color 250ms ease, box-shadow 250ms ease;
-        opacity: 1;
-    }}
-    .st-key-sidebar_toggle {{
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        align-self: stretch;
-        min-height: 360px;
-        flex: 0 0 auto;
-        margin-right: 14px;
-    }}
-    .st-key-sidebar_toggle > div {{
-        display: flex;
-        align-items: center;
-        height: 100%;
-    }}
-    .st-key-sidebar_toggle button {{
-        width: 28px !important;
-        height: 28px !important;
-        min-width: 28px !important;
-        border-radius: 50% !important;
-        padding: 0 !important;
-        background: {WHITE} !important;
-        border: 1px solid {BORDER} !important;
-        box-shadow: 0 2px 8px rgba(11,37,69,0.14) !important;
-        color: {NAVY} !important;
-        font-weight: 700 !important;
-        transition: background 150ms ease, transform 150ms ease;
-    }}
-    .st-key-sidebar_toggle button:hover {{
-        background: {TINT} !important;
-        transform: scale(1.08);
-    }}
-    .st-key-main_panel {{
-        flex: 1 1 auto;
-        min-width: 0;
-    }}
-    @media (max-width: 900px) {{
-        .st-key-sidebar_panel {{ flex-basis: min(340px, 78vw); width: min(340px, 78vw); max-width: 78vw; }}
-    }}
+        /* Ocultar sidebar nativa */
+        section[data-testid="stSidebar"] {{ display: none !important; }}
+
+        /* Contenedor principal */
+        .main .block-container {{
+            padding-top: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+            padding-bottom: 2rem !important;
+            max-width: 100% !important;
+            margin-left: {SIDEBAR_WIDTH if is_open else 0}px !important;
+            transition: margin-left 300ms cubic-bezier(0.4, 0, 0.2, 1) !important;
+        }}
+
+        .main .block-container > div[data-testid="stVerticalBlock"] {{ gap: 0 !important; }}
+
+        /* Layout wrapper */
+        #custom-layout-wrapper {{
+            display: flex;
+            min-height: 100vh;
+            background: {BG};
+        }}
+
+        /* La sidebar */
+        #custom-sidebar {{
+            width: {SIDEBAR_WIDTH}px;
+            min-width: {SIDEBAR_WIDTH}px;
+            background: {WHITE};
+            border-right: 1px solid {BORDER};
+            box-shadow: 2px 0 8px rgba(0,0,0,0.04);
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 999;
+            display: flex;
+            flex-direction: column;
+            transform: translateX(0);
+            transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
+                        width 300ms cubic-bezier(0.4, 0, 0.2, 1),
+                        min-width 300ms cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+        }}
+
+        #custom-sidebar.collapsed {{
+            transform: translateX(-{SIDEBAR_WIDTH}px);
+            width: 0;
+            min-width: 0;
+        }}
+
+        /* Contenido de la sidebar */
+        #sidebar-inner {{
+            padding: 16px;
+            flex: 1;
+            overflow-y: auto;
+            opacity: 1;
+            transition: opacity 200ms ease 50ms;
+            min-width: {SIDEBAR_WIDTH}px;
+        }}
+
+        #custom-sidebar.collapsed #sidebar-inner {{
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 150ms ease;
+        }}
+
+        /* Botón toggle */
+        #sidebar-toggle-btn {{
+            position: absolute;
+            right: -12px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 24px;
+            height: 48px;
+            background: {WHITE};
+            border: 1px solid {BORDER};
+            border-radius: 0 8px 8px 0;
+            box-shadow: 2px 0 6px rgba(0,0,0,0.08);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: all 200ms ease;
+            padding: 0;
+        }}
+
+        #sidebar-toggle-btn:hover {{
+            background: {TINT};
+            width: 28px;
+            box-shadow: 2px 0 8px rgba(0,0,0,0.12);
+        }}
+
+        .toggle-arrow {{
+            width: 0;
+            height: 0;
+            border-top: 5px solid transparent;
+            border-bottom: 5px solid transparent;
+            transition: all 300ms ease;
+        }}
+
+        .toggle-arrow.open {{
+            border-right: 6px solid {GRAY};
+            border-left: none;
+            margin-left: -2px;
+        }}
+
+        .toggle-arrow.closed {{
+            border-left: 6px solid {GRAY};
+            border-right: none;
+            margin-left: 2px;
+        }}
+
+        /* Área principal */
+        #main-content-area {{
+            flex: 1;
+            margin-left: {SIDEBAR_WIDTH if is_open else 0}px;
+            transition: margin-left 300ms cubic-bezier(0.4, 0, 0.2, 1);
+            min-height: 100vh;
+            padding: 16px 24px;
+            box-sizing: border-box;
+        }}
+
+        h1 {{ color: {NAVY} !important; font-weight: 700 !important; font-size: 22px !important; }}
+        h2 {{ color: {NAVY} !important; font-weight: 600 !important; font-size: 16px !important; margin-top: 0.2rem !important; }}
+        h3 {{ color: {NAVY} !important; font-weight: 600 !important; font-size: 14px !important;
+             border-left: 3px solid {BLUE}; padding-left: 10px; margin-top: 0.3rem !important; }}
+
+        .stTabs [data-baseweb="tab-list"] {{ gap: 2px; border-bottom: 1px solid {BORDER}; }}
+        .stTabs [data-baseweb="tab"] {{
+            background-color: transparent; border-radius: 6px 6px 0 0;
+            padding: 8px 16px; color: {MUTED}; font-weight: 500; font-size: 13px;
+        }}
+        .stTabs [aria-selected="true"] {{
+            background-color: {TINT} !important; color: {NAVY} !important; font-weight: 600;
+        }}
+
+        div[data-testid="stDataFrame"] {{ border: 1px solid {BORDER}; border-radius: 6px; }}
+
+        .st-key-kb_hidden {{
+            position: fixed !important; top: -9999px !important; left: -9999px !important;
+            height: 1px !important; width: 1px !important; overflow: hidden !important;
+        }}
+
+        @media (max-width: 768px) {{
+            #custom-sidebar {{
+                box-shadow: 4px 0 20px rgba(0,0,0,0.12);
+            }}
+            #custom-sidebar.collapsed {{
+                transform: translateX(-100%);
+            }}
+            #main-content-area {{
+                margin-left: 0 !important;
+                padding: 12px;
+            }}
+            .main .block-container {{
+                margin-left: 0 !important;
+            }}
+        }}
+
+        /* Bottom bar */
+        .bottom-bar {{
+            position: fixed; bottom: 0; left: {SIDEBAR_WIDTH if is_open else 0}px;
+            right: 0;
+            background: {WHITE}; border-top: 1px solid {BORDER};
+            padding: 0; z-index: 9999;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 -2px 12px rgba(0,0,0,0.04);
+            transition: left 300ms cubic-bezier(0.4, 0, 0.2, 1);
+        }}
+
+        .bottom-bar-inner {{
+            display: flex; align-items: center; gap: 0;
+            max-width: 600px; width: 100%;
+        }}
+
+        .nav-btn {{
+            background: none; border: none; color: {BLUE}; font-weight: 600; font-size: 13px;
+            padding: 14px 24px; cursor: pointer; letter-spacing: 0.3px;
+            border-right: 1px solid {BORDER}; flex: 1; text-align: center;
+            transition: background 0.15s;
+        }}
+        .nav-btn:hover {{ background: {TINT}; }}
+        .nav-btn:disabled {{ color: {LTGRAY}; cursor: not-allowed; background: none; }}
+
+        .nav-center {{
+            padding: 10px 32px; text-align: center; flex: 2;
+            border-right: 1px solid {BORDER};
+        }}
+        .nav-center-top {{ font-size: 12px; color: {MUTED}; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }}
+        .nav-center-bot {{ font-size: 14px; color: {NAVY}; font-weight: 700; margin-top: 2px; }}
     </style>
     """, unsafe_allow_html=True)
 
+def inject_collapsible_sidebar_html():
+    is_open = st.session_state.get('sidebar_open', True)
+    arrow_class = "open" if is_open else "closed"
+    sidebar_class = "" if is_open else "collapsed"
+
+    layout_html = f"""
+    <div id="custom-layout-wrapper">
+        <div id="custom-sidebar" class="{sidebar_class}">
+            <div id="sidebar-inner"></div>
+            <button id="sidebar-toggle-btn" onclick="toggleCustomSidebar()">
+                <div class="toggle-arrow {arrow_class}"></div>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        function toggleCustomSidebar() {{
+            const sidebar = document.getElementById('custom-sidebar');
+            const arrow = document.querySelector('.toggle-arrow');
+            const mainContainer = document.querySelector('.main .block-container');
+            const bottomBar = document.querySelector('.bottom-bar');
+
+            const isOpen = !sidebar.classList.contains('collapsed');
+            const newState = !isOpen;
+
+            if (newState) {{
+                sidebar.classList.remove('collapsed');
+                sidebar.style.transform = 'translateX(0)';
+                sidebar.style.width = '{SIDEBAR_WIDTH}px';
+                sidebar.style.minWidth = '{SIDEBAR_WIDTH}px';
+                arrow.classList.remove('closed');
+                arrow.classList.add('open');
+                if (mainContainer) mainContainer.style.marginLeft = '{SIDEBAR_WIDTH}px';
+                if (bottomBar) bottomBar.style.left = '{SIDEBAR_WIDTH}px';
+            }} else {{
+                sidebar.classList.add('collapsed');
+                sidebar.style.transform = 'translateX(-{SIDEBAR_WIDTH}px)';
+                sidebar.style.width = '0';
+                sidebar.style.minWidth = '0';
+                arrow.classList.remove('open');
+                arrow.classList.add('closed');
+                if (mainContainer) mainContainer.style.marginLeft = '0';
+                if (bottomBar) bottomBar.style.left = '0';
+            }}
+
+            window.parent.postMessage({{
+                type: 'streamlit:setComponentValue',
+                value: newState
+            }}, '*');
+        }}
+
+        (function() {{
+            const sidebar = document.getElementById('custom-sidebar');
+            const mainContainer = document.querySelector('.main .block-container');
+            const bottomBar = document.querySelector('.bottom-bar');
+            const isOpen = {'true' if is_open else 'false'};
+            if (!isOpen) {{
+                if (mainContainer) mainContainer.style.marginLeft = '0';
+                if (bottomBar) bottomBar.style.left = '0';
+            }}
+        }})();
+    </script>
+    """
+    components.html(layout_html, height=0, scrolling=False)
+
+# =============================================================================
+# UTILIDADES (originales)
+# =============================================================================
 def pill(text, color_bg, color_fg):
     return f'<span style="background:{color_bg};color:{color_fg};font-size:11px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;">{text}</span>'
 
@@ -271,17 +394,15 @@ def section_title(text):
     return f"<p style='font-size:13px;font-weight:700;color:{NAVY};margin:0 0 12px;text-transform:uppercase;letter-spacing:0.5px;'>{text}</p>"
 
 # =============================================================================
-# PREFERENCIAS DEL SIDEBAR (persistentes entre sesiones)
+# PREFERENCIAS DEL SIDEBAR
 # =============================================================================
 PREFS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".sidebar_prefs.json")
 
-# Claves de session_state que se guardan/restauran en disco
 CLAVES_PREFS_SIDEBAR = [
-    "sec_contexto", "sec_orden", "sec_exogenas",       # estado desplegado/colapsado
+    "sec_contexto", "sec_orden", "sec_exogenas",
     "criterio_ordenamiento",
     "filtro_ljung", "filtro_jarque", "filtro_hetero",
-    "filtro_favoritos", "nav_sticky",
-    "sidebar_open",                                     # estado abierto/cerrado de la sidebar
+    "filtro_favoritos", "nav_sticky", "sidebar_open",
 ]
 
 def cargar_prefs_sidebar():
@@ -300,9 +421,6 @@ def guardar_prefs_sidebar():
         pass
 
 def encabezado_colapsable(titulo, key):
-    """Renderiza un encabezado de seccion tipo acordeon para el sidebar.
-    El estado (abierto/cerrado) se guarda en session_state y se persiste
-    en disco (.sidebar_prefs.json) para recordarse entre sesiones."""
     if key not in st.session_state:
         st.session_state[key] = True
     abierto = st.session_state[key]
@@ -561,7 +679,7 @@ def resumen_fwl(fwl_df):
     return {'promedio': vals.mean(), 'maximo': vals.max(), 'minimo': vals.min(), 'volatilidad': vals.std()}
 
 # =============================================================================
-# SCORE SYSTEM (A-D Grading)
+# SCORE SYSTEM
 # =============================================================================
 def calcular_score(p_val, prueba_nombre=""):
     if p_val is None or pd.isna(p_val):
@@ -613,8 +731,6 @@ def obtener_scores_modelo(pruebas_df):
     return scores
 
 def calcular_score_global(pruebas_df):
-    """Score agregado 0-10: Ljung-Box 40%, Jarque-Bera 30%, Heterocedasticidad 30%.
-    Los diagnosticos sin dato (N/A) se excluyen y el peso se renormaliza."""
     scores = obtener_scores_modelo(pruebas_df)
     acumulado, peso_total = 0.0, 0.0
     detalle = {}
@@ -947,7 +1063,6 @@ def alternar_favorito(nombre):
         st.session_state.favoritos.add(nombre)
 
 def boton_favorito(nombre, key_suffix=""):
-    """Renderiza un boton tipo estrella para marcar/desmarcar un modelo como favorito."""
     activo = es_favorito(nombre)
     label = "★ Favorito" if activo else "☆ Marcar favorito"
     if st.button(label, key=f"fav_{key_suffix}_{nombre}", use_container_width=True):
@@ -1113,9 +1228,9 @@ def render_resumen_ejecutivo():
     with c1:
         st.markdown(card_kpi("Total de modelos", str(total)), unsafe_allow_html=True)
     with c2:
-        st.markdown(card_kpi("Buenos (score ≥ 7)", str(buenos), accent=GREEN), unsafe_allow_html=True)
+        st.markdown(card_kpi("Buenos (score >= 7)", str(buenos), accent=GREEN), unsafe_allow_html=True)
     with c3:
-        st.markdown(card_kpi("Regulares (5 – 7)", str(regulares), accent="#B8860B"), unsafe_allow_html=True)
+        st.markdown(card_kpi("Regulares (5 - 7)", str(regulares), accent="#B8860B"), unsafe_allow_html=True)
     with c4:
         st.markdown(card_kpi("Deficientes (< 5)", str(deficientes), accent=RED), unsafe_allow_html=True)
     st.markdown(divider(), unsafe_allow_html=True)
@@ -1163,7 +1278,7 @@ def render_vista_favoritos():
     """, unsafe_allow_html=True)
     bcol1, bcol2 = st.columns([1, 5])
     with bcol1:
-        if st.button("← Volver", key="btn_volver_de_favoritos", use_container_width=True):
+        if st.button("<- Volver", key="btn_volver_de_favoritos", use_container_width=True):
             st.session_state.vista_favoritos = False
             st.session_state.vista_resumen = True
             st.rerun()
@@ -1231,7 +1346,6 @@ def render_seccion_coeficientes(datos, key_prefix="diag"):
         else:
             styler = styler.applymap(color_pval, subset=['P-valor'])
         st.dataframe(styler, use_container_width=True, hide_index=True, key=f"{key_prefix}_coef_tabla")
-        # --- Conteo de AR y MA ---
         ar_count, ma_count = contar_ar_ma(coefs)
         st.markdown(divider(), unsafe_allow_html=True)
         st.markdown(section_title("Estructura del modelo"), unsafe_allow_html=True)
@@ -1273,10 +1387,12 @@ for key, default in [
 # APP
 # =============================================================================
 st.set_page_config(page_title="Dashboard SARIMAX", layout="wide")
-inject_css()
+
+# Inyectar CSS de la sidebar colapsable
+inject_collapsible_sidebar_css()
 
 # =========================================================================
-# ATAJOS DE TECLADO (flechas para navegar, Escape para limpiar filtros)
+# ATAJOS DE TECLADO
 # =========================================================================
 with st.container(key="kb_hidden"):
     kb_c1, kb_c2, kb_c3 = st.columns(3)
@@ -1337,471 +1453,432 @@ _KB_SHORTCUT_HTML = """
 })();
 </script>
 """
-if hasattr(st, "iframe"):
-    st.iframe(_KB_SHORTCUT_HTML, height=1, width=1)
-else:
-    components.html(_KB_SHORTCUT_HTML, height=0, width=0)
+components.html(_KB_SHORTCUT_HTML, height=0, width=0)
+
+# Inyectar HTML de la sidebar colapsable
+inject_collapsible_sidebar_html()
 
 # =========================================================================
-# LAYOUT PRINCIPAL: sidebar colapsable personalizada + panel principal
+# SIDEBAR (renderizado en el contenedor de Streamlit)
 # =========================================================================
-sidebar_open = st.session_state.get("sidebar_open", True)
-
-# Cuando esta colapsada, sobreescribimos el ancho de la MISMA clase CSS
-# (.st-key-sidebar_panel) a 0px. Al ser la misma clase, la transicion
-# definida en inject_css() anima el cambio en vez de saltar de golpe.
-if not sidebar_open:
-    st.markdown(f"""
-    <style>
-    .st-key-sidebar_panel {{
-        flex-basis: 0px !important;
-        width: 0px !important;
-        max-width: 0px !important;
-        padding: 0px !important;
-        margin-right: 0px !important;
-        opacity: 0 !important;
-        border: none !important;
-        box-shadow: none !important;
-        pointer-events: none;
-    }}
-    </style>
-    """, unsafe_allow_html=True)
-
-with st.container(key="app_shell"):
-
-    # ---------------------------------------------------------------
-    # PANEL LATERAL IZQUIERDO (antes: with col_left)
-    # ---------------------------------------------------------------
-    with st.container(key="sidebar_panel"):
-        st.markdown(f"<p style='font-size:12px;font-weight:700;color:{NAVY};margin:0 0 10px;letter-spacing:0.5px;'>CARGAR MODELO</p>", unsafe_allow_html=True)
-        uploaded = st.file_uploader("Archivo Excel (.xlsx)", type=["xlsx"], label_visibility="collapsed")
-        if uploaded is not None:
-            st.session_state.uploaded_file = uploaded
-            if not st.session_state.modelos_data or uploaded.name != getattr(st.session_state, 'last_file_name', None):
-                with st.spinner("Parseando modelos..."):
-                    st.session_state.modelos_data = parsear_excel(uploaded)
-                    st.session_state.meta_contexto = leer_meta_embebida(uploaded)
-                    st.session_state.last_file_name = uploaded.name
-                    st.session_state.vista_resumen = True
-                    st.session_state.comparar_sel = []
-                st.success(f"Archivo cargado: {uploaded.name}")
-                if st.session_state.modelo_seleccionado is None or st.session_state.modelo_seleccionado not in st.session_state.modelos_data:
-                    st.session_state.modelo_seleccionado = list(st.session_state.modelos_data.keys())[0]
-        if st.session_state.uploaded_file is not None:
-            if st.button("Eliminar archivo", key="btn_eliminar", use_container_width=True):
-                st.session_state.uploaded_file = None
-                st.session_state.modelos_data = {}
-                st.session_state.meta_contexto = None
-                st.session_state.modelo_seleccionado = None
-                st.session_state.last_file_name = None
-                st.session_state.exog_sel = {}
+with st.container():
+    st.markdown(f"<p style='font-size:12px;font-weight:700;color:{NAVY};margin:0 0 10px;letter-spacing:0.5px;'>CARGAR MODELO</p>", unsafe_allow_html=True)
+    uploaded = st.file_uploader("Archivo Excel (.xlsx)", type=["xlsx"], label_visibility="collapsed")
+    if uploaded is not None:
+        st.session_state.uploaded_file = uploaded
+        if not st.session_state.modelos_data or uploaded.name != getattr(st.session_state, 'last_file_name', None):
+            with st.spinner("Parseando modelos..."):
+                st.session_state.modelos_data = parsear_excel(uploaded)
+                st.session_state.meta_contexto = leer_meta_embebida(uploaded)
+                st.session_state.last_file_name = uploaded.name
                 st.session_state.vista_resumen = True
                 st.session_state.comparar_sel = []
-                st.rerun()
-        if st.session_state.modelos_data:
-            st.markdown(divider(), unsafe_allow_html=True)
-            meta = st.session_state.meta_contexto
-            if encabezado_colapsable("Contexto de la corrida", "sec_contexto"):
-                if meta:
-                    meta_kpis = extraer_kpis_meta(meta)
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        pais_nombre = meta_kpis.get('pais', '—')
-                        codigo_iso = BANDERAS_PAISES.get(pais_nombre, pais_nombre).upper()
-                        bandera_html = obtener_bandera_pais(pais_nombre)
-                        valor_pais = f"{bandera_html}{codigo_iso}"
-                        st.markdown(card_kpi("Pais", valor_pais), unsafe_allow_html=True)
-                    with c2:
-                        st.markdown(card_kpi("Ventana media movil", meta_kpis.get('ventana_mm', '—')), unsafe_allow_html=True)
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        st.markdown(card_kpi("Cartera", meta_kpis.get('cartera', '—'), accent=BLUE), unsafe_allow_html=True)
-                    with c2:
-                        fwl_range = f"{meta_kpis.get('fwl_min', '?')} – {meta_kpis.get('fwl_max', '?')}"
-                        st.markdown(card_kpi("Rango FWL", fwl_range, accent=GREEN), unsafe_allow_html=True)
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        st.markdown(card_kpi("Modo endogena", meta_kpis.get('modo_endogena', '—')), unsafe_allow_html=True)
-                    with c2:
-                        st.markdown(card_kpi("Top exportados", meta_kpis.get('top_exportar', '—')), unsafe_allow_html=True)
-                else:
-                    st.caption("Sin metadata embebida.")
-            st.markdown(divider(), unsafe_allow_html=True)
-            # --- ORDENAR Y FILTROS DE DIAGNOSTICO (colapsable) ---
-            if encabezado_colapsable("Ordenar y Filtrar", "sec_orden"):
-                criterio = st.radio("Ordenar por:", ["Nombre (A-Z)", "Pruebas aprobadas ↓", "Pruebas aprobadas ↑",
-                                                      "Score global ↓", "Score global ↑"],
-                                    index=["Nombre (A-Z)", "Pruebas aprobadas ↓", "Pruebas aprobadas ↑",
-                                           "Score global ↓", "Score global ↑"].index(st.session_state.criterio_ordenamiento),
-                                    key="criterio_orden")
-                st.session_state.criterio_ordenamiento = criterio
-                st.markdown(f"<p style='font-size:10px;color:{MUTED};margin:8px 0 4px;'>Ljung-Box</p>", unsafe_allow_html=True)
-                filtro_ljung = st.selectbox("", ["Todos", "A o B (Cumple)", "A, B o C", "Solo A"],
-                                             index=["Todos", "A o B (Cumple)", "A, B o C", "Solo A"].index(st.session_state.filtro_ljung),
-                                             key="filtro_ljung_sel", label_visibility="collapsed")
-                st.session_state.filtro_ljung = filtro_ljung
-                st.markdown(f"<p style='font-size:10px;color:{MUTED};margin:8px 0 4px;'>Jarque-Bera</p>", unsafe_allow_html=True)
-                filtro_jarque = st.selectbox("", ["Todos", "A o B (Cumple)", "A, B o C", "Solo A"],
-                                              index=["Todos", "A o B (Cumple)", "A, B o C", "Solo A"].index(st.session_state.filtro_jarque),
-                                              key="filtro_jarque_sel", label_visibility="collapsed")
-                st.session_state.filtro_jarque = filtro_jarque
-                st.markdown(f"<p style='font-size:10px;color:{MUTED};margin:8px 0 4px;'>Heterocedasticidad</p>", unsafe_allow_html=True)
-                filtro_hetero = st.selectbox("", ["Todos", "A o B (Cumple)", "A, B o C", "Solo A"],
-                                              index=["Todos", "A o B (Cumple)", "A, B o C", "Solo A"].index(st.session_state.filtro_hetero),
-                                              key="filtro_hetero_sel", label_visibility="collapsed")
-                st.session_state.filtro_hetero = filtro_hetero
-                st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
-                filtro_favoritos = st.checkbox("★ Solo favoritos", key="filtro_favoritos_sel",
-                                                value=st.session_state.get("filtro_favoritos", False))
-                st.session_state.filtro_favoritos = filtro_favoritos
-            st.markdown(divider(), unsafe_allow_html=True)
-            modelos_list, pruebas_dict, scores_dict, global_dict = construir_opciones_modelos()
-            if st.session_state.pending_modelo is not None and st.session_state.pending_modelo in modelos_list:
-                st.session_state.modelo_seleccionado = st.session_state.pending_modelo
-                st.session_state["sel_modelo"] = label_modelo(st.session_state.pending_modelo, pruebas_dict, scores_dict, global_dict)
-                st.session_state.pending_modelo = None
-            opciones = [label_modelo(m, pruebas_dict, scores_dict, global_dict) for m in modelos_list]
-            if not modelos_list:
-                st.warning("Ningun modelo cumple con los filtros seleccionados.")
-                st.session_state.modelo_seleccionado = None
-            else:
-                idx = modelos_list.index(st.session_state.modelo_seleccionado) if st.session_state.modelo_seleccionado in modelos_list else 0
-                seleccion = st.selectbox("Modelo", opciones, index=idx, key="sel_modelo")
-                nombre_parseado = seleccion.split("  (")[0]
-                if nombre_parseado.startswith("★ "):
-                    nombre_parseado = nombre_parseado[2:]
-                st.session_state.modelo_seleccionado = nombre_parseado
-            st.markdown(divider(), unsafe_allow_html=True)
-            st.toggle("Fijar flechas de navegacion", key="nav_sticky",
-                      help="Mantiene los botones Anterior/Siguiente siempre visibles, flotando sobre la pagina al hacer scroll.")
-            # Persiste en disco cualquier cambio de orden/filtros/nav_sticky de este rerun.
-            guardar_prefs_sidebar()
-            if st.session_state.modelo_seleccionado:
-                datos = st.session_state.modelos_data.get(st.session_state.modelo_seleccionado, {})
-                st.markdown(f"<p style='font-size:11px;font-weight:600;color:{NAVY};margin:12px 0 4px;'>MODELO ACTUAL</p>", unsafe_allow_html=True)
-                st.markdown(f"<p style='font-size:14px;font-weight:700;color:{NAVY};margin:0;'>{st.session_state.modelo_seleccionado}</p>", unsafe_allow_html=True)
-                st.markdown(f"<p style='font-size:11px;color:{MUTED};margin:4px 0 0;'>{datos.get('observaciones', 0)} observaciones</p>", unsafe_allow_html=True)
-                st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
-                boton_favorito(st.session_state.modelo_seleccionado, key_suffix="sidebar")
-                exogenas = datos.get('exogenas_nombres', [])
-                if exogenas:
-                    st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-                    if encabezado_colapsable("Exogenas", "sec_exogenas"):
-                        coefs = datos.get('coeficientes')
-                        sigs = obtener_significancia_exogenas(coefs, exogenas)
-                        sig_count = sum(1 for _, _, s in sigs if s == "Significativa")
-                        st.markdown(f"<p style='font-size:10px;color:{MUTED};margin:0 0 6px;'>{sig_count} de {len(exogenas)} significativas</p>", unsafe_allow_html=True)
-                        for ex, pval, status in sigs:
-                            color = GREEN if status == "Significativa" else (RED if status == "No significativa" else "#B8860B")
-                            label = "SIG" if status == "Significativa" else ("NO SIG" if status == "No significativa" else "MARG")
-                            p_txt = f"p={pval:.3f}" if pval is not None else "p=N/A"
-                            st.markdown(f'<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;font-size:11px;"><span style="color:{TEXT}">{ex}</span><span style="color:{color};font-weight:600;">{label} ({p_txt})</span></div>', unsafe_allow_html=True)
-
-    # ---------------------------------------------------------------
-    # BOTON TOGGLE (flecha) — siempre visible, centrado verticalmente
-    # ---------------------------------------------------------------
-    with st.container(key="sidebar_toggle"):
-        icono = "‹" if sidebar_open else "›"
-        if st.button(icono, key="btn_toggle_sidebar", help="Colapsar/expandir panel lateral"):
-            st.session_state.sidebar_open = not sidebar_open
-            guardar_prefs_sidebar()
+            st.success(f"Archivo cargado: {uploaded.name}")
+            if st.session_state.modelo_seleccionado is None or st.session_state.modelo_seleccionado not in st.session_state.modelos_data:
+                st.session_state.modelo_seleccionado = list(st.session_state.modelos_data.keys())[0]
+    if st.session_state.uploaded_file is not None:
+        if st.button("Eliminar archivo", key="btn_eliminar", use_container_width=True):
+            st.session_state.uploaded_file = None
+            st.session_state.modelos_data = {}
+            st.session_state.meta_contexto = None
+            st.session_state.modelo_seleccionado = None
+            st.session_state.last_file_name = None
+            st.session_state.exog_sel = {}
+            st.session_state.vista_resumen = True
+            st.session_state.comparar_sel = []
             st.rerun()
+    if st.session_state.modelos_data:
+        st.markdown(divider(), unsafe_allow_html=True)
+        meta = st.session_state.meta_contexto
+        if encabezado_colapsable("Contexto de la corrida", "sec_contexto"):
+            if meta:
+                meta_kpis = extraer_kpis_meta(meta)
+                c1, c2 = st.columns(2)
+                with c1:
+                    pais_nombre = meta_kpis.get('pais', '—')
+                    codigo_iso = BANDERAS_PAISES.get(pais_nombre, pais_nombre).upper()
+                    bandera_html = obtener_bandera_pais(pais_nombre)
+                    valor_pais = f"{bandera_html}{codigo_iso}"
+                    st.markdown(card_kpi("Pais", valor_pais), unsafe_allow_html=True)
+                with c2:
+                    st.markdown(card_kpi("Ventana media movil", meta_kpis.get('ventana_mm', '—')), unsafe_allow_html=True)
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.markdown(card_kpi("Cartera", meta_kpis.get('cartera', '—'), accent=BLUE), unsafe_allow_html=True)
+                with c2:
+                    fwl_range = f"{meta_kpis.get('fwl_min', '?')} – {meta_kpis.get('fwl_max', '?')}"
+                    st.markdown(card_kpi("Rango FWL", fwl_range, accent=GREEN), unsafe_allow_html=True)
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.markdown(card_kpi("Modo endogena", meta_kpis.get('modo_endogena', '—')), unsafe_allow_html=True)
+                with c2:
+                    st.markdown(card_kpi("Top exportados", meta_kpis.get('top_exportar', '—')), unsafe_allow_html=True)
+            else:
+                st.caption("Sin metadata embebida.")
+        st.markdown(divider(), unsafe_allow_html=True)
+        if encabezado_colapsable("Ordenar y Filtrar", "sec_orden"):
+            criterio = st.radio("Ordenar por:", ["Nombre (A-Z)", "Pruebas aprobadas ↓", "Pruebas aprobadas ↑",
+                                                  "Score global ↓", "Score global ↑"],
+                                index=["Nombre (A-Z)", "Pruebas aprobadas ↓", "Pruebas aprobadas ↑",
+                                       "Score global ↓", "Score global ↑"].index(st.session_state.criterio_ordenamiento),
+                                key="criterio_orden")
+            st.session_state.criterio_ordenamiento = criterio
+            st.markdown(f"<p style='font-size:10px;color:{MUTED};margin:8px 0 4px;'>Ljung-Box</p>", unsafe_allow_html=True)
+            filtro_ljung = st.selectbox("", ["Todos", "A o B (Cumple)", "A, B o C", "Solo A"],
+                                         index=["Todos", "A o B (Cumple)", "A, B o C", "Solo A"].index(st.session_state.filtro_ljung),
+                                         key="filtro_ljung_sel", label_visibility="collapsed")
+            st.session_state.filtro_ljung = filtro_ljung
+            st.markdown(f"<p style='font-size:10px;color:{MUTED};margin:8px 0 4px;'>Jarque-Bera</p>", unsafe_allow_html=True)
+            filtro_jarque = st.selectbox("", ["Todos", "A o B (Cumple)", "A, B o C", "Solo A"],
+                                          index=["Todos", "A o B (Cumple)", "A, B o C", "Solo A"].index(st.session_state.filtro_jarque),
+                                          key="filtro_jarque_sel", label_visibility="collapsed")
+            st.session_state.filtro_jarque = filtro_jarque
+            st.markdown(f"<p style='font-size:10px;color:{MUTED};margin:8px 0 4px;'>Heterocedasticidad</p>", unsafe_allow_html=True)
+            filtro_hetero = st.selectbox("", ["Todos", "A o B (Cumple)", "A, B o C", "Solo A"],
+                                          index=["Todos", "A o B (Cumple)", "A, B o C", "Solo A"].index(st.session_state.filtro_hetero),
+                                          key="filtro_hetero_sel", label_visibility="collapsed")
+            st.session_state.filtro_hetero = filtro_hetero
+            st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
+            filtro_favoritos = st.checkbox("★ Solo favoritos", key="filtro_favoritos_sel",
+                                            value=st.session_state.get("filtro_favoritos", False))
+            st.session_state.filtro_favoritos = filtro_favoritos
+        st.markdown(divider(), unsafe_allow_html=True)
+        modelos_list, pruebas_dict, scores_dict, global_dict = construir_opciones_modelos()
+        if st.session_state.pending_modelo is not None and st.session_state.pending_modelo in modelos_list:
+            st.session_state.modelo_seleccionado = st.session_state.pending_modelo
+            st.session_state["sel_modelo"] = label_modelo(st.session_state.pending_modelo, pruebas_dict, scores_dict, global_dict)
+            st.session_state.pending_modelo = None
+        opciones = [label_modelo(m, pruebas_dict, scores_dict, global_dict) for m in modelos_list]
+        if not modelos_list:
+            st.warning("Ningun modelo cumple con los filtros seleccionados.")
+            st.session_state.modelo_seleccionado = None
+        else:
+            idx = modelos_list.index(st.session_state.modelo_seleccionado) if st.session_state.modelo_seleccionado in modelos_list else 0
+            seleccion = st.selectbox("Modelo", opciones, index=idx, key="sel_modelo")
+            nombre_parseado = seleccion.split("  (")[0]
+            if nombre_parseado.startswith("★ "):
+                nombre_parseado = nombre_parseado[2:]
+            st.session_state.modelo_seleccionado = nombre_parseado
+        st.markdown(divider(), unsafe_allow_html=True)
+        st.toggle("Fijar flechas de navegacion", key="nav_sticky",
+                  help="Mantiene los botones Anterior/Siguiente siempre visibles, flotando sobre la pagina al hacer scroll.")
+        guardar_prefs_sidebar()
+        if st.session_state.modelo_seleccionado:
+            datos = st.session_state.modelos_data.get(st.session_state.modelo_seleccionado, {})
+            st.markdown(f"<p style='font-size:11px;font-weight:600;color:{NAVY};margin:12px 0 4px;'>MODELO ACTUAL</p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='font-size:14px;font-weight:700;color:{NAVY};margin:0;'>{st.session_state.modelo_seleccionado}</p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='font-size:11px;color:{MUTED};margin:4px 0 0;'>{datos.get('observaciones', 0)} observaciones</p>", unsafe_allow_html=True)
+            st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
+            boton_favorito(st.session_state.modelo_seleccionado, key_suffix="sidebar")
+            exogenas = datos.get('exogenas_nombres', [])
+            if exogenas:
+                st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+                if encabezado_colapsable("Exogenas", "sec_exogenas"):
+                    coefs = datos.get('coeficientes')
+                    sigs = obtener_significancia_exogenas(coefs, exogenas)
+                    sig_count = sum(1 for _, _, s in sigs if s == "Significativa")
+                    st.markdown(f"<p style='font-size:10px;color:{MUTED};margin:0 0 6px;'>{sig_count} de {len(exogenas)} significativas</p>", unsafe_allow_html=True)
+                    for ex, pval, status in sigs:
+                        color = GREEN if status == "Significativa" else (RED if status == "No significativa" else "#B8860B")
+                        label = "SIG" if status == "Significativa" else ("NO SIG" if status == "No significativa" else "MARG")
+                        p_txt = f"p={pval:.3f}" if pval is not None else "p=N/A"
+                        st.markdown(f'<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;font-size:11px;"><span style="color:{TEXT}">{ex}</span><span style="color:{color};font-weight:600;">{label} ({p_txt})</span></div>', unsafe_allow_html=True)
 
-    # ---------------------------------------------------------------
-    # PANEL PRINCIPAL (antes: with col_right)
-    # ---------------------------------------------------------------
-    with st.container(key="main_panel"):
-        if not st.session_state.modelos_data:
-            st.markdown(f"""
-            <div style="background:{WHITE};border:1px solid {BORDER};border-radius:10px;padding:60px 32px;text-align:center;margin-top:40px;">
-                <p style="font-size:18px;font-weight:700;color:{NAVY};margin:0 0 8px;">Dashboard SARIMAX</p>
-                <p style="font-size:13px;color:{MUTED};margin:0;">Suba un archivo Excel para comenzar el analisis.</p>
+# =========================================================================
+# PANEL PRINCIPAL
+# =========================================================================
+with st.container():
+    if not st.session_state.modelos_data:
+        st.markdown(f"""
+        <div style="background:{WHITE};border:1px solid {BORDER};border-radius:10px;padding:60px 32px;text-align:center;margin-top:40px;">
+            <p style="font-size:18px;font-weight:700;color:{NAVY};margin:0 0 8px;">Dashboard SARIMAX</p>
+            <p style="font-size:13px;color:{MUTED};margin:0;">Suba un archivo Excel para comenzar el analisis.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    elif st.session_state.vista_favoritos:
+        render_vista_favoritos()
+    elif st.session_state.vista_resumen:
+        render_resumen_ejecutivo()
+    elif st.session_state.modelo_seleccionado is None:
+        st.markdown(f"""
+        <div style="background:{WHITE};border:1px solid {BORDER};border-radius:10px;padding:60px 32px;text-align:center;margin-top:40px;">
+            <p style="font-size:18px;font-weight:700;color:{NAVY};margin:0 0 8px;">Sin modelos disponibles</p>
+            <p style="font-size:13px;color:{MUTED};margin:0;">Ajuste los filtros de diagnostico para ver modelos.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        datos = st.session_state.modelos_data.get(st.session_state.modelo_seleccionado, {})
+        meta_kpis = extraer_kpis_meta(st.session_state.meta_contexto)
+        pais = meta_kpis.get('pais', '—')
+        cartera = meta_kpis.get('cartera', '—')
+        pais_codigo_hdr = BANDERAS_PAISES.get(pais, pais).upper()
+        score_global_hdr, _ = calcular_score_global(datos.get('pruebas'))
+        st.markdown(f"""
+        <div style="display:flex;align-items:flex-end;gap:16px;margin-bottom:4px;">
+            <div style="flex:1;">
+                <p style="font-size:11px;color:{MUTED};margin:0;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Modelo seleccionado</p>
+                <p style="font-size:20px;font-weight:700;color:{NAVY};margin:4px 0 0;">{st.session_state.modelo_seleccionado}
+                    <span style="margin-left:10px;">{score_global_badge(score_global_hdr)}</span>
+                </p>
             </div>
-            """, unsafe_allow_html=True)
-        elif st.session_state.vista_favoritos:
-            render_vista_favoritos()
-        elif st.session_state.vista_resumen:
-            render_resumen_ejecutivo()
-        elif st.session_state.modelo_seleccionado is None:
-            st.markdown(f"""
-            <div style="background:{WHITE};border:1px solid {BORDER};border-radius:10px;padding:60px 32px;text-align:center;margin-top:40px;">
-                <p style="font-size:18px;font-weight:700;color:{NAVY};margin:0 0 8px;">Sin modelos disponibles</p>
-                <p style="font-size:13px;color:{MUTED};margin:0;">Ajuste los filtros de diagnostico para ver modelos.</p>
+            <div style="text-align:right;">
+                <p style="font-size:11px;color:{MUTED};margin:0;">{obtener_bandera_pais(pais)}{pais_codigo_hdr} · {cartera}</p>
+                <p style="font-size:11px;color:{LTGRAY};margin:2px 0 0;">{len(st.session_state.modelos_data)} modelos cargados</p>
             </div>
+        </div>
+        <div style="height:1px;background:{BORDER};margin:12px 0 16px;"></div>
+        """, unsafe_allow_html=True)
+        hcol1, hcol2, hcol3 = st.columns([1.4, 1.1, 1])
+        with hcol1:
+            if st.button("Ver resumen de la corrida", key="btn_ver_resumen", use_container_width=True):
+                st.session_state.vista_resumen = True
+                st.rerun()
+        with hcol2:
+            n_fav = len([m for m in st.session_state.get("favoritos", set()) if m in st.session_state.modelos_data])
+            if st.button(f"★ Ver favoritos ({n_fav})", key="btn_ver_favoritos_detalle", use_container_width=True):
+                st.session_state.vista_favoritos = True
+                st.rerun()
+        with hcol3:
+            boton_favorito(st.session_state.modelo_seleccionado, key_suffix="detalle")
+        modelos_list, pruebas_dict_nav, scores_dict_nav, global_dict_nav = construir_opciones_modelos()
+        current_idx = modelos_list.index(st.session_state.modelo_seleccionado) if st.session_state.modelo_seleccionado in modelos_list else 0
+        tab_resumen, tab1, tab2, tab3, tab4 = st.tabs(["Resumen Modelo", "Visualizacion", "Predicciones", "Diagnosticos", "Comparar"])
+        # =====================================================================
+        # TAB 0: RESUMEN MODELO
+        # =====================================================================
+        with tab_resumen:
+            st.markdown(section_title("Factor FWL a 12 meses"), unsafe_allow_html=True)
+            df_fwl_resumen = datos.get('fwl_12m')
+            if df_fwl_resumen is not None and not df_fwl_resumen.empty:
+                st.plotly_chart(fig_fwl_12m(df_fwl_resumen), use_container_width=True, key="resumen_fwl12m")
+            else:
+                st.info("No hay datos de FWL a 12 meses.")
+            st.markdown(divider(), unsafe_allow_html=True)
+            render_diagnosticos_corporativo(datos.get('pruebas'), mostrar_detalle_tecnico=False)
+            st.markdown(divider(), unsafe_allow_html=True)
+            render_seccion_coeficientes(datos, key_prefix="resumen")
+        # =====================================================================
+        # TAB 1: VISUALIZACION
+        # =====================================================================
+        with tab1:
+            st.markdown(section_title("Exogenas activas"), unsafe_allow_html=True)
+            exogenas = datos.get('exogenas_nombres', [])
+            modelo_key = st.session_state.modelo_seleccionado
+            if modelo_key not in st.session_state.exog_sel:
+                st.session_state.exog_sel[modelo_key] = []
+            if exogenas:
+                n_cols = min(len(exogenas), 6)
+                chip_cols = st.columns(n_cols)
+                for i, ex in enumerate(exogenas):
+                    with chip_cols[i % n_cols]:
+                        activo = ex in st.session_state.exog_sel[modelo_key]
+                        label = f"[x] {ex}" if activo else f"[ ] {ex}"
+                        if st.button(label, key=f"chip_{modelo_key}_{ex}", use_container_width=True):
+                            if activo:
+                                st.session_state.exog_sel[modelo_key].remove(ex)
+                            else:
+                                st.session_state.exog_sel[modelo_key].append(ex)
+                            st.rerun()
+            else:
+                st.caption("Sin exogenas en este modelo.")
+            df_end = datos.get('fecha_endogena')
+            endogena_cols = datos.get('endogenas_cols', [])
+            if df_end is not None and not df_end.empty and endogena_cols:
+                fig = fig_predicciones(df_end, endogena_cols, datos.get('exogenas'), st.session_state.exog_sel.get(modelo_key, []), st.session_state.modelo_seleccionado)
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("No hay datos de predicciones.")
+            st.markdown(divider(), unsafe_allow_html=True)
+            st.markdown(section_title("Factor FWL por ano y escenario"), unsafe_allow_html=True)
+            df_fwl_anual = datos.get('fwl_anual')
+            if df_fwl_anual is not None and not df_fwl_anual.empty:
+                try:
+                    df_pivot = df_fwl_anual.pivot(index='Año', columns='Escenario', values='Factor FWL').reset_index()
+                    rename_map = {}
+                    for c in df_pivot.columns:
+                        c_str = str(c).lower()
+                        if 'base' in c_str: rename_map[c] = 'Base'
+                        elif 'adverso' in c_str or 'advers' in c_str: rename_map[c] = 'Adverso'
+                        elif 'optimista' in c_str: rename_map[c] = 'Optimista'
+                    df_pivot = df_pivot.rename(columns=rename_map)
+                    st.dataframe(df_pivot, use_container_width=True, hide_index=True)
+                except:
+                    st.dataframe(df_fwl_anual, use_container_width=True, hide_index=True)
+            else:
+                st.info("No hay datos de Factor FWL por Ano.")
+            st.markdown(divider(), unsafe_allow_html=True)
+            st.markdown(section_title("Factor FWL a 12 meses"), unsafe_allow_html=True)
+            df_fwl = datos.get('fwl_12m')
+            if df_fwl is not None and not df_fwl.empty:
+                st.plotly_chart(fig_fwl_12m(df_fwl), use_container_width=True, key="viz_fwl12m")
+            else:
+                st.info("No hay datos de FWL a 12 meses.")
+            st.markdown(divider(), unsafe_allow_html=True)
+            st.markdown(section_title("Factor FWL ponderado"), unsafe_allow_html=True)
+            c1, c2, c3 = st.columns(3)
+            with c1: peso_base = st.number_input("Peso Base", 0.0, 1.0, 0.33, 0.01, key="pw_base")
+            with c2: peso_adverso = st.number_input("Peso Adverso", 0.0, 1.0, 0.33, 0.01, key="pw_adv")
+            with c3: peso_optimista = st.number_input("Peso Optimista", 0.0, 1.0, 0.34, 0.01, key="pw_opt")
+            suma = peso_base + peso_adverso + peso_optimista
+            if abs(suma - 1.0) < 0.001:
+                st.markdown(pill("VALIDO", "#E8F5E9", GREEN), unsafe_allow_html=True)
+            elif suma < 1.0:
+                st.markdown(pill(f"{1.0-suma:.2f} DISPONIBLE", "#FFF8E1", "#B8860B"), unsafe_allow_html=True)
+            else:
+                st.markdown(pill(f"EXCEDE {suma-1.0:.2f}", "#FFEBEE", RED), unsafe_allow_html=True)
+            if df_fwl is not None and not df_fwl.empty and suma <= 1.0:
+                pesos = {'base': peso_base, 'adverso': peso_adverso, 'optimista': peso_optimista}
+                df_pond = calcular_fwl_ponderado(df_fwl, pesos)
+                if df_pond is not None:
+                    res = resumen_fwl(df_pond)
+                    if res:
+                        c1, c2, c3, c4 = st.columns(4)
+                        with c1: st.markdown(card_metric("Promedio", f"{res.get('promedio', 0):.4f}", BLUE), unsafe_allow_html=True)
+                        with c2: st.markdown(card_metric("Maximo", f"{res.get('maximo', 0):.4f}", GREEN), unsafe_allow_html=True)
+                        with c3: st.markdown(card_metric("Minimo", f"{res.get('minimo', 0):.4f}", RED), unsafe_allow_html=True)
+                        with c4: st.markdown(card_metric("Volatilidad (s)", f"{res.get('volatilidad', 0):.4f}", GRAY), unsafe_allow_html=True)
+                    st.plotly_chart(fig_fwl_ponderado(df_pond), use_container_width=True)
+                else:
+                    st.info("No se pudo calcular el FWL ponderado.")
+            elif suma > 1.0:
+                st.warning("Ajuste los pesos para que la suma no exceda 1.0")
+        # =====================================================================
+        # TAB 2: PREDICCIONES
+        # =====================================================================
+        with tab2:
+            st.markdown(section_title("Datos de prediccion"), unsafe_allow_html=True)
+            filtros = st.columns(4)
+            with filtros[0]:
+                if st.button("Ver Base", use_container_width=True): st.session_state.pred_filtro = "Base"
+            with filtros[1]:
+                if st.button("Ver Adverso", use_container_width=True): st.session_state.pred_filtro = "Adverso"
+            with filtros[2]:
+                if st.button("Ver Optimista", use_container_width=True): st.session_state.pred_filtro = "Optimista"
+            with filtros[3]:
+                if st.button("Ver todas", use_container_width=True): st.session_state.pred_filtro = "Todas"
+            st.markdown(f"<p style='font-size:11px;color:{MUTED};margin:8px 0;'>Filtro activo: <b>{st.session_state.pred_filtro}</b></p>", unsafe_allow_html=True)
+            df_end = datos.get('fecha_endogena')
+            endogena_cols = datos.get('endogenas_cols', [])
+            if df_end is not None and not df_end.empty and endogena_cols:
+                fecha_col = 'fecha' if 'fecha' in df_end.columns else df_end.columns[0]
+                base_col = adv_col = opt_col = None
+                for col in endogena_cols:
+                    col_str = str(col).upper()
+                    if col_str == 'BASE': base_col = col
+                    elif col_str in ['ADVERSO', 'ADVERSA']: adv_col = col
+                    elif col_str == 'OPTIMISTA': opt_col = col
+                df_pred = pd.DataFrame()
+                df_pred['Fecha'] = pd.to_datetime(df_end[fecha_col]).dt.strftime('%Y-%m-%d')
+                cols_export = ['Fecha']
+                if base_col and base_col in df_end.columns and st.session_state.pred_filtro in ["Base", "Todas"]:
+                    df_pred['Base'] = df_end[base_col].astype(float).round(4)
+                    cols_export.append('Base')
+                if adv_col and adv_col in df_end.columns and st.session_state.pred_filtro in ["Adverso", "Todas"]:
+                    df_pred['Adverso'] = df_end[adv_col].astype(float).round(4)
+                    cols_export.append('Adverso')
+                if opt_col and opt_col in df_end.columns and st.session_state.pred_filtro in ["Optimista", "Todas"]:
+                    df_pred['Optimista'] = df_end[opt_col].astype(float).round(4)
+                    cols_export.append('Optimista')
+                st.dataframe(df_pred[cols_export], use_container_width=True, hide_index=True, height=400)
+                csv = df_pred[cols_export].to_csv(index=False).encode('utf-8')
+                st.download_button("Descargar CSV", csv, f"predicciones_{st.session_state.modelo_seleccionado}.csv", "text/csv")
+            else:
+                st.info("No hay datos de predicciones.")
+        # =====================================================================
+        # TAB 3: DIAGNOSTICOS
+        # =====================================================================
+        with tab3:
+            st.markdown(render_leyenda_scores(), unsafe_allow_html=True)
+            pruebas = datos.get('pruebas')
+            render_metricas_diagnostico(pruebas)
+            st.markdown(divider(), unsafe_allow_html=True)
+            render_diagnosticos_corporativo(pruebas)
+            st.markdown(divider(), unsafe_allow_html=True)
+            st.markdown(section_title("Distribucion de residuos"), unsafe_allow_html=True)
+            residuos = datos.get('residuos_ind')
+            if residuos is not None and not residuos.empty:
+                res_col = None
+                for c in residuos.columns:
+                    if 'residuo' in str(c).lower():
+                        res_col = c
+                        break
+                if res_col:
+                    vals = residuos[res_col].dropna().astype(float)
+                    media, std = vals.mean(), vals.std()
+                    st.plotly_chart(fig_histograma_residuos(vals, media, std), use_container_width=True)
+                    st.markdown(section_title("Estadisticas descriptivas"), unsafe_allow_html=True)
+                    c1, c2, c3, c4, c5 = st.columns(5)
+                    with c1: st.markdown(card_metric("Media", f"{media:.4f}"), unsafe_allow_html=True)
+                    with c2: st.markdown(card_metric("Desv. Std.", f"{std:.4f}"), unsafe_allow_html=True)
+                    with c3: st.markdown(card_metric("Asimetria", f"{stats.skew(vals):.4f}"), unsafe_allow_html=True)
+                    with c4: st.markdown(card_metric("Curtosis", f"{stats.kurtosis(vals):.4f}"), unsafe_allow_html=True)
+                    with c5: st.markdown(card_metric("Observaciones", f"{len(vals)}"), unsafe_allow_html=True)
+            else:
+                st.info("No hay datos de residuos.")
+            st.markdown(divider(), unsafe_allow_html=True)
+            render_seccion_coeficientes(datos, key_prefix="diag")
+        # =====================================================================
+        # TAB 4: COMPARAR
+        # =====================================================================
+        with tab4:
+            st.markdown(section_title("Comparador de modelos"), unsafe_allow_html=True)
+            st.markdown(f"<p style='font-size:11px;color:{MUTED};margin:0 0 10px;'>Seleccione hasta 3 modelos para comparar lado a lado.</p>", unsafe_allow_html=True)
+            todos_modelos = list(st.session_state.modelos_data.keys())
+            default_sel = [m for m in st.session_state.get("comparar_sel", []) if m in todos_modelos][:3]
+            seleccion_comp = st.multiselect("Modelos a comparar", todos_modelos, default=default_sel, key="comparar_multiselect")
+            if len(seleccion_comp) > 3:
+                st.warning("Se seleccionaron mas de 3 modelos. Solo se compararan los primeros 3.")
+                seleccion_comp = seleccion_comp[:3]
+            st.session_state.comparar_sel = seleccion_comp
+            if seleccion_comp:
+                cols_comp = st.columns(len(seleccion_comp))
+                for i_comp, nombre_comp in enumerate(seleccion_comp):
+                    with cols_comp[i_comp]:
+                        render_columna_comparacion(nombre_comp)
+            else:
+                st.info("Seleccione al menos un modelo para iniciar la comparacion.")
+        # --- Bottom nav bar ---
+        nav_sticky = st.session_state.get("nav_sticky", True)
+        if nav_sticky:
+            st.markdown(f"""
+            <style>
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(> div > div.st-key-nav_flechas),
+            .st-key-nav_flechas {{
+                position: fixed !important;
+                bottom: 22px;
+                left: 50%;
+                transform: translateX(-46%);
+                z-index: 9999;
+                background: {WHITE};
+                border: 1px solid {BORDER};
+                border-radius: 14px;
+                box-shadow: 0 8px 28px rgba(11,37,69,0.16);
+                padding: 6px 10px !important;
+                width: auto !important;
+                max-width: 560px;
+            }}
+            .block-container {{ padding-bottom: 120px !important; }}
+            </style>
             """, unsafe_allow_html=True)
         else:
-            datos = st.session_state.modelos_data.get(st.session_state.modelo_seleccionado, {})
-            meta_kpis = extraer_kpis_meta(st.session_state.meta_contexto)
-            pais = meta_kpis.get('pais', '—')
-            cartera = meta_kpis.get('cartera', '—')
-            pais_codigo_hdr = BANDERAS_PAISES.get(pais, pais).upper()
-            score_global_hdr, _ = calcular_score_global(datos.get('pruebas'))
-            st.markdown(f"""
-            <div style="display:flex;align-items:flex-end;gap:16px;margin-bottom:4px;">
-                <div style="flex:1;">
-                    <p style="font-size:11px;color:{MUTED};margin:0;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Modelo seleccionado</p>
-                    <p style="font-size:20px;font-weight:700;color:{NAVY};margin:4px 0 0;">{st.session_state.modelo_seleccionado}
-                        <span style="margin-left:10px;">{score_global_badge(score_global_hdr)}</span>
-                    </p>
-                </div>
-                <div style="text-align:right;">
-                    <p style="font-size:11px;color:{MUTED};margin:0;">{obtener_bandera_pais(pais)}{pais_codigo_hdr} · {cartera}</p>
-                    <p style="font-size:11px;color:{LTGRAY};margin:2px 0 0;">{len(st.session_state.modelos_data)} modelos cargados</p>
-                </div>
-            </div>
-            <div style="height:1px;background:{BORDER};margin:12px 0 16px;"></div>
-            """, unsafe_allow_html=True)
-            hcol1, hcol2, hcol3 = st.columns([1.4, 1.1, 1])
-            with hcol1:
-                if st.button("Ver resumen de la corrida", key="btn_ver_resumen", use_container_width=True):
-                    st.session_state.vista_resumen = True
+            st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
+        with st.container(key="nav_flechas"):
+            nav_cols = st.columns([1, 2, 1])
+            with nav_cols[0]:
+                if st.button("<-          ", disabled=current_idx == 0, key="btn_prev_real", use_container_width=True):
+                    st.session_state.pending_modelo = modelos_list[current_idx - 1]
                     st.rerun()
-            with hcol2:
-                n_fav = len([m for m in st.session_state.get("favoritos", set()) if m in st.session_state.modelos_data])
-                if st.button(f"★ Ver favoritos ({n_fav})", key="btn_ver_favoritos_detalle", use_container_width=True):
-                    st.session_state.vista_favoritos = True
+            with nav_cols[1]:
+                st.markdown(
+                    f"""
+                    <div style="text-align:center;padding:6px 4px;">
+                        <p style="font-size:10px;color:{MUTED};margin:0;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Modelo {current_idx + 1} de {len(modelos_list)}</p>
+                        <p style="font-size:13px;color:{NAVY};font-weight:700;margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{st.session_state.modelo_seleccionado}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+            with nav_cols[2]:
+                if st.button("->          ", disabled=current_idx == len(modelos_list) - 1, key="btn_next_real", use_container_width=True):
+                    st.session_state.pending_modelo = modelos_list[current_idx + 1]
                     st.rerun()
-            with hcol3:
-                boton_favorito(st.session_state.modelo_seleccionado, key_suffix="detalle")
-            modelos_list, pruebas_dict_nav, scores_dict_nav, global_dict_nav = construir_opciones_modelos()
-            current_idx = modelos_list.index(st.session_state.modelo_seleccionado) if st.session_state.modelo_seleccionado in modelos_list else 0
-            tab_resumen, tab1, tab2, tab3, tab4 = st.tabs(["Resumen Modelo", "Visualizacion", "Predicciones", "Diagnosticos", "Comparar"])
-            # =====================================================================
-            # TAB 0: RESUMEN MODELO
-            # =====================================================================
-            with tab_resumen:
-                st.markdown(section_title("Factor FWL a 12 meses"), unsafe_allow_html=True)
-                df_fwl_resumen = datos.get('fwl_12m')
-                if df_fwl_resumen is not None and not df_fwl_resumen.empty:
-                    st.plotly_chart(fig_fwl_12m(df_fwl_resumen), use_container_width=True, key="resumen_fwl12m")
-                else:
-                    st.info("No hay datos de FWL a 12 meses.")
-                st.markdown(divider(), unsafe_allow_html=True)
-                render_diagnosticos_corporativo(datos.get('pruebas'), mostrar_detalle_tecnico=False)
-                st.markdown(divider(), unsafe_allow_html=True)
-                render_seccion_coeficientes(datos, key_prefix="resumen")
-            # =====================================================================
-            # TAB 1: VISUALIZACION
-            # =====================================================================
-            with tab1:
-                st.markdown(section_title("Exogenas activas"), unsafe_allow_html=True)
-                exogenas = datos.get('exogenas_nombres', [])
-                modelo_key = st.session_state.modelo_seleccionado
-                if modelo_key not in st.session_state.exog_sel:
-                    st.session_state.exog_sel[modelo_key] = []
-                if exogenas:
-                    n_cols = min(len(exogenas), 6)
-                    chip_cols = st.columns(n_cols)
-                    for i, ex in enumerate(exogenas):
-                        with chip_cols[i % n_cols]:
-                            activo = ex in st.session_state.exog_sel[modelo_key]
-                            label = f"[x] {ex}" if activo else f"[ ] {ex}"
-                            if st.button(label, key=f"chip_{modelo_key}_{ex}", use_container_width=True):
-                                if activo:
-                                    st.session_state.exog_sel[modelo_key].remove(ex)
-                                else:
-                                    st.session_state.exog_sel[modelo_key].append(ex)
-                                st.rerun()
-                else:
-                    st.caption("Sin exogenas en este modelo.")
-                df_end = datos.get('fecha_endogena')
-                endogena_cols = datos.get('endogenas_cols', [])
-                if df_end is not None and not df_end.empty and endogena_cols:
-                    fig = fig_predicciones(df_end, endogena_cols, datos.get('exogenas'), st.session_state.exog_sel.get(modelo_key, []), st.session_state.modelo_seleccionado)
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.info("No hay datos de predicciones.")
-                st.markdown(divider(), unsafe_allow_html=True)
-                st.markdown(section_title("Factor FWL por ano y escenario"), unsafe_allow_html=True)
-                df_fwl_anual = datos.get('fwl_anual')
-                if df_fwl_anual is not None and not df_fwl_anual.empty:
-                    try:
-                        df_pivot = df_fwl_anual.pivot(index='Año', columns='Escenario', values='Factor FWL').reset_index()
-                        rename_map = {}
-                        for c in df_pivot.columns:
-                            c_str = str(c).lower()
-                            if 'base' in c_str: rename_map[c] = 'Base'
-                            elif 'adverso' in c_str or 'advers' in c_str: rename_map[c] = 'Adverso'
-                            elif 'optimista' in c_str: rename_map[c] = 'Optimista'
-                        df_pivot = df_pivot.rename(columns=rename_map)
-                        st.dataframe(df_pivot, use_container_width=True, hide_index=True)
-                    except:
-                        st.dataframe(df_fwl_anual, use_container_width=True, hide_index=True)
-                else:
-                    st.info("No hay datos de Factor FWL por Ano.")
-                st.markdown(divider(), unsafe_allow_html=True)
-                st.markdown(section_title("Factor FWL a 12 meses"), unsafe_allow_html=True)
-                df_fwl = datos.get('fwl_12m')
-                if df_fwl is not None and not df_fwl.empty:
-                    st.plotly_chart(fig_fwl_12m(df_fwl), use_container_width=True, key="viz_fwl12m")
-                else:
-                    st.info("No hay datos de FWL a 12 meses.")
-                st.markdown(divider(), unsafe_allow_html=True)
-                st.markdown(section_title("Factor FWL ponderado"), unsafe_allow_html=True)
-                c1, c2, c3 = st.columns(3)
-                with c1: peso_base = st.number_input("Peso Base", 0.0, 1.0, 0.33, 0.01, key="pw_base")
-                with c2: peso_adverso = st.number_input("Peso Adverso", 0.0, 1.0, 0.33, 0.01, key="pw_adv")
-                with c3: peso_optimista = st.number_input("Peso Optimista", 0.0, 1.0, 0.34, 0.01, key="pw_opt")
-                suma = peso_base + peso_adverso + peso_optimista
-                if abs(suma - 1.0) < 0.001:
-                    st.markdown(pill("VALIDO", "#E8F5E9", GREEN), unsafe_allow_html=True)
-                elif suma < 1.0:
-                    st.markdown(pill(f"{1.0-suma:.2f} DISPONIBLE", "#FFF8E1", "#B8860B"), unsafe_allow_html=True)
-                else:
-                    st.markdown(pill(f"EXCEDE {suma-1.0:.2f}", "#FFEBEE", RED), unsafe_allow_html=True)
-                if df_fwl is not None and not df_fwl.empty and suma <= 1.0:
-                    pesos = {'base': peso_base, 'adverso': peso_adverso, 'optimista': peso_optimista}
-                    df_pond = calcular_fwl_ponderado(df_fwl, pesos)
-                    if df_pond is not None:
-                        res = resumen_fwl(df_pond)
-                        if res:
-                            c1, c2, c3, c4 = st.columns(4)
-                            with c1: st.markdown(card_metric("Promedio", f"{res.get('promedio', 0):.4f}", BLUE), unsafe_allow_html=True)
-                            with c2: st.markdown(card_metric("Maximo", f"{res.get('maximo', 0):.4f}", GREEN), unsafe_allow_html=True)
-                            with c3: st.markdown(card_metric("Minimo", f"{res.get('minimo', 0):.4f}", RED), unsafe_allow_html=True)
-                            with c4: st.markdown(card_metric("Volatilidad (s)", f"{res.get('volatilidad', 0):.4f}", GRAY), unsafe_allow_html=True)
-                        st.plotly_chart(fig_fwl_ponderado(df_pond), use_container_width=True)
-                    else:
-                        st.info("No se pudo calcular el FWL ponderado.")
-                elif suma > 1.0:
-                    st.warning("Ajuste los pesos para que la suma no exceda 1.0")
-            # =====================================================================
-            # TAB 2: PREDICCIONES
-            # =====================================================================
-            with tab2:
-                st.markdown(section_title("Datos de prediccion"), unsafe_allow_html=True)
-                filtros = st.columns(4)
-                with filtros[0]:
-                    if st.button("Ver Base", use_container_width=True): st.session_state.pred_filtro = "Base"
-                with filtros[1]:
-                    if st.button("Ver Adverso", use_container_width=True): st.session_state.pred_filtro = "Adverso"
-                with filtros[2]:
-                    if st.button("Ver Optimista", use_container_width=True): st.session_state.pred_filtro = "Optimista"
-                with filtros[3]:
-                    if st.button("Ver todas", use_container_width=True): st.session_state.pred_filtro = "Todas"
-                st.markdown(f"<p style='font-size:11px;color:{MUTED};margin:8px 0;'>Filtro activo: <b>{st.session_state.pred_filtro}</b></p>", unsafe_allow_html=True)
-                df_end = datos.get('fecha_endogena')
-                endogena_cols = datos.get('endogenas_cols', [])
-                if df_end is not None and not df_end.empty and endogena_cols:
-                    fecha_col = 'fecha' if 'fecha' in df_end.columns else df_end.columns[0]
-                    base_col = adv_col = opt_col = None
-                    for col in endogena_cols:
-                        col_str = str(col).upper()
-                        if col_str == 'BASE': base_col = col
-                        elif col_str in ['ADVERSO', 'ADVERSA']: adv_col = col
-                        elif col_str == 'OPTIMISTA': opt_col = col
-                    df_pred = pd.DataFrame()
-                    df_pred['Fecha'] = pd.to_datetime(df_end[fecha_col]).dt.strftime('%Y-%m-%d')
-                    cols_export = ['Fecha']
-                    if base_col and base_col in df_end.columns and st.session_state.pred_filtro in ["Base", "Todas"]:
-                        df_pred['Base'] = df_end[base_col].astype(float).round(4)
-                        cols_export.append('Base')
-                    if adv_col and adv_col in df_end.columns and st.session_state.pred_filtro in ["Adverso", "Todas"]:
-                        df_pred['Adverso'] = df_end[adv_col].astype(float).round(4)
-                        cols_export.append('Adverso')
-                    if opt_col and opt_col in df_end.columns and st.session_state.pred_filtro in ["Optimista", "Todas"]:
-                        df_pred['Optimista'] = df_end[opt_col].astype(float).round(4)
-                        cols_export.append('Optimista')
-                    st.dataframe(df_pred[cols_export], use_container_width=True, hide_index=True, height=400)
-                    csv = df_pred[cols_export].to_csv(index=False).encode('utf-8')
-                    st.download_button("Descargar CSV", csv, f"predicciones_{st.session_state.modelo_seleccionado}.csv", "text/csv")
-                else:
-                    st.info("No hay datos de predicciones.")
-            # =====================================================================
-            # TAB 3: DIAGNOSTICOS
-            # =====================================================================
-            with tab3:
-                st.markdown(render_leyenda_scores(), unsafe_allow_html=True)
-                pruebas = datos.get('pruebas')
-                render_metricas_diagnostico(pruebas)
-                st.markdown(divider(), unsafe_allow_html=True)
-                render_diagnosticos_corporativo(pruebas)
-                st.markdown(divider(), unsafe_allow_html=True)
-                st.markdown(section_title("Distribucion de residuos"), unsafe_allow_html=True)
-                residuos = datos.get('residuos_ind')
-                if residuos is not None and not residuos.empty:
-                    res_col = None
-                    for c in residuos.columns:
-                        if 'residuo' in str(c).lower():
-                            res_col = c
-                            break
-                    if res_col:
-                        vals = residuos[res_col].dropna().astype(float)
-                        media, std = vals.mean(), vals.std()
-                        st.plotly_chart(fig_histograma_residuos(vals, media, std), use_container_width=True)
-                        st.markdown(section_title("Estadisticas descriptivas"), unsafe_allow_html=True)
-                        c1, c2, c3, c4, c5 = st.columns(5)
-                        with c1: st.markdown(card_metric("Media", f"{media:.4f}"), unsafe_allow_html=True)
-                        with c2: st.markdown(card_metric("Desv. Std.", f"{std:.4f}"), unsafe_allow_html=True)
-                        with c3: st.markdown(card_metric("Asimetria", f"{stats.skew(vals):.4f}"), unsafe_allow_html=True)
-                        with c4: st.markdown(card_metric("Curtosis", f"{stats.kurtosis(vals):.4f}"), unsafe_allow_html=True)
-                        with c5: st.markdown(card_metric("Observaciones", f"{len(vals)}"), unsafe_allow_html=True)
-                else:
-                    st.info("No hay datos de residuos.")
-                st.markdown(divider(), unsafe_allow_html=True)
-                render_seccion_coeficientes(datos, key_prefix="diag")
-            # =====================================================================
-            # TAB 4: COMPARAR
-            # =====================================================================
-            with tab4:
-                st.markdown(section_title("Comparador de modelos"), unsafe_allow_html=True)
-                st.markdown(f"<p style='font-size:11px;color:{MUTED};margin:0 0 10px;'>Seleccione hasta 3 modelos para comparar lado a lado.</p>", unsafe_allow_html=True)
-                todos_modelos = list(st.session_state.modelos_data.keys())
-                default_sel = [m for m in st.session_state.get("comparar_sel", []) if m in todos_modelos][:3]
-                seleccion_comp = st.multiselect("Modelos a comparar", todos_modelos, default=default_sel, key="comparar_multiselect")
-                if len(seleccion_comp) > 3:
-                    st.warning("Se seleccionaron mas de 3 modelos. Solo se compararan los primeros 3.")
-                    seleccion_comp = seleccion_comp[:3]
-                st.session_state.comparar_sel = seleccion_comp
-                if seleccion_comp:
-                    cols_comp = st.columns(len(seleccion_comp))
-                    for i_comp, nombre_comp in enumerate(seleccion_comp):
-                        with cols_comp[i_comp]:
-                            render_columna_comparacion(nombre_comp)
-                else:
-                    st.info("Seleccione al menos un modelo para iniciar la comparacion.")
-            # --- Bottom nav bar ---
-            nav_sticky = st.session_state.get("nav_sticky", True)
-            if nav_sticky:
-                st.markdown(f"""
-                <style>
-                div[data-testid="stVerticalBlockBorderWrapper"]:has(> div > div.st-key-nav_flechas),
-                .st-key-nav_flechas {{
-                    position: fixed !important;
-                    bottom: 22px;
-                    left: 50%;
-                    transform: translateX(-46%);
-                    z-index: 9999;
-                    background: {WHITE};
-                    border: 1px solid {BORDER};
-                    border-radius: 14px;
-                    box-shadow: 0 8px 28px rgba(11,37,69,0.16);
-                    padding: 6px 10px !important;
-                    width: auto !important;
-                    max-width: 560px;
-                }}
-                .block-container {{ padding-bottom: 120px !important; }}
-                </style>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
-            with st.container(key="nav_flechas"):
-                nav_cols = st.columns([1, 2, 1])
-                with nav_cols[0]:
-                    if st.button("←          ", disabled=current_idx == 0, key="btn_prev_real", use_container_width=True):
-                        st.session_state.pending_modelo = modelos_list[current_idx - 1]
-                        st.rerun()
-                with nav_cols[1]:
-                    st.markdown(
-                        f"""
-                        <div style="text-align:center;padding:6px 4px;">
-                            <p style="font-size:10px;color:{MUTED};margin:0;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Modelo {current_idx + 1} de {len(modelos_list)}</p>
-                            <p style="font-size:13px;color:{NAVY};font-weight:700;margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{st.session_state.modelo_seleccionado}</p>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
-                with nav_cols[2]:
-                    if st.button("→          ", disabled=current_idx == len(modelos_list) - 1, key="btn_next_real", use_container_width=True):
-                        st.session_state.pending_modelo = modelos_list[current_idx + 1]
-                        st.rerun()
