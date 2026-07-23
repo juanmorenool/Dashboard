@@ -36,6 +36,7 @@ SCORE_COLORS = {
     'D': ("#FFEBEE", "#B83232"),
 }
 
+# --- Score global (ponderacion de diagnosticos) ---
 SCORE_NUM_MAP = {'A': 10.0, 'B': 7.5, 'C': 5.0, 'D': 2.5}
 PESOS_SCORE_GLOBAL = {'ljung_box': 0.40, 'jarque_bera': 0.30, 'heterocedasticidad': 0.30}
 
@@ -44,15 +45,18 @@ PAISES_MAP = {
     'panama': 'Panamá',
     'panamá': 'Panamá',
     'costa rica': 'Costa Rica',
+    # --- códigos cortos que vienen en la metadata embebida ---
     'co': 'Colombia',
     'pa': 'Panamá',
     'cr': 'Costa Rica',
 }
 
+# --- Codigos ISO 3166-1 alpha-2 para renderizar banderas (via flagcdn.com) ---
 BANDERAS_PAISES = {
     'Colombia': 'co',
     'Panamá': 'pa',
     'Costa Rica': 'cr',
+    # --- fallback por si llega el código crudo sin normalizar ---
     'co': 'co',
     'pa': 'pa',
     'cr': 'cr',
@@ -62,11 +66,15 @@ BANDERAS_PAISES = {
 }
 
 def obtener_bandera_pais(pais, ancho=20):
+    """Devuelve el tag <img> con la bandera del pais dado.
+    Acepta nombre completo (ej. 'Colombia') o código ISO (ej. 'CO', 'co')."""
     if not pais:
         return ""
     pais_str = str(pais).strip()
+    # Primero intenta por nombre completo; si falla, usa el código directo
     codigo = BANDERAS_PAISES.get(pais_str)
     if not codigo:
+        # Último fallback: intentar con el valor en minúsculas
         codigo = BANDERAS_PAISES.get(pais_str.lower())
     if not codigo:
         return ""
@@ -81,286 +89,85 @@ CARTERAS_MAP = {
     'micro': 'Microcrédito',
 }
 
-# =============================================================================
-# SIDEBAR COLAPSABLE — COMPONENTE REUTILIZABLE
-# =============================================================================
-SIDEBAR_WIDTH = 340
-
-def inject_collapsible_sidebar_css():
-    is_open = st.session_state.get('sidebar_open', True)
+def inject_css():
     st.markdown(f"""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        html, body, [class*="css"], .stApp, .stMarkdown, .stDataFrame, .stButton,
-        .stSelectbox, .stTextInput, .stNumberInput, .stTabs {{
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
-        }}
-        #MainMenu {{ visibility: hidden; }}
-        footer {{ visibility: hidden; }}
-        header[data-testid="stHeader"] {{ background: transparent; }}
-
-        /* Ocultar sidebar nativa */
-        section[data-testid="stSidebar"] {{ display: none !important; }}
-
-        /* Contenedor principal */
-        .main .block-container {{
-            padding-top: 0 !important;
-            padding-left: 0 !important;
-            padding-right: 0 !important;
-            padding-bottom: 2rem !important;
-            max-width: 100% !important;
-            margin-left: {SIDEBAR_WIDTH if is_open else 0}px !important;
-            transition: margin-left 300ms cubic-bezier(0.4, 0, 0.2, 1) !important;
-        }}
-
-        .main .block-container > div[data-testid="stVerticalBlock"] {{ gap: 0 !important; }}
-
-        /* Layout wrapper */
-        #custom-layout-wrapper {{
-            display: flex;
-            min-height: 100vh;
-            background: {BG};
-        }}
-
-        /* La sidebar */
-        #custom-sidebar {{
-            width: {SIDEBAR_WIDTH}px;
-            min-width: {SIDEBAR_WIDTH}px;
-            background: {WHITE};
-            border-right: 1px solid {BORDER};
-            box-shadow: 2px 0 8px rgba(0,0,0,0.04);
-            height: 100vh;
-            position: fixed;
-            top: 0;
-            left: 0;
-            z-index: 999;
-            display: flex;
-            flex-direction: column;
-            transform: translateX(0);
-            transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
-                        width 300ms cubic-bezier(0.4, 0, 0.2, 1),
-                        min-width 300ms cubic-bezier(0.4, 0, 0.2, 1);
-            overflow: hidden;
-        }}
-
-        #custom-sidebar.collapsed {{
-            transform: translateX(-{SIDEBAR_WIDTH}px);
-            width: 0;
-            min-width: 0;
-        }}
-
-        /* Contenido de la sidebar */
-        #sidebar-inner {{
-            padding: 16px;
-            flex: 1;
-            overflow-y: auto;
-            opacity: 1;
-            transition: opacity 200ms ease 50ms;
-            min-width: {SIDEBAR_WIDTH}px;
-        }}
-
-        #custom-sidebar.collapsed #sidebar-inner {{
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 150ms ease;
-        }}
-
-        /* Botón toggle */
-        #sidebar-toggle-btn {{
-            position: absolute;
-            right: -12px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 24px;
-            height: 48px;
-            background: {WHITE};
-            border: 1px solid {BORDER};
-            border-radius: 0 8px 8px 0;
-            box-shadow: 2px 0 6px rgba(0,0,0,0.08);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            transition: all 200ms ease;
-            padding: 0;
-        }}
-
-        #sidebar-toggle-btn:hover {{
-            background: {TINT};
-            width: 28px;
-            box-shadow: 2px 0 8px rgba(0,0,0,0.12);
-        }}
-
-        .toggle-arrow {{
-            width: 0;
-            height: 0;
-            border-top: 5px solid transparent;
-            border-bottom: 5px solid transparent;
-            transition: all 300ms ease;
-        }}
-
-        .toggle-arrow.open {{
-            border-right: 6px solid {GRAY};
-            border-left: none;
-            margin-left: -2px;
-        }}
-
-        .toggle-arrow.closed {{
-            border-left: 6px solid {GRAY};
-            border-right: none;
-            margin-left: 2px;
-        }}
-
-        /* Área principal */
-        #main-content-area {{
-            flex: 1;
-            margin-left: {SIDEBAR_WIDTH if is_open else 0}px;
-            transition: margin-left 300ms cubic-bezier(0.4, 0, 0.2, 1);
-            min-height: 100vh;
-            padding: 16px 24px;
-            box-sizing: border-box;
-        }}
-
-        h1 {{ color: {NAVY} !important; font-weight: 700 !important; font-size: 22px !important; }}
-        h2 {{ color: {NAVY} !important; font-weight: 600 !important; font-size: 16px !important; margin-top: 0.2rem !important; }}
-        h3 {{ color: {NAVY} !important; font-weight: 600 !important; font-size: 14px !important;
-             border-left: 3px solid {BLUE}; padding-left: 10px; margin-top: 0.3rem !important; }}
-
-        .stTabs [data-baseweb="tab-list"] {{ gap: 2px; border-bottom: 1px solid {BORDER}; }}
-        .stTabs [data-baseweb="tab"] {{
-            background-color: transparent; border-radius: 6px 6px 0 0;
-            padding: 8px 16px; color: {MUTED}; font-weight: 500; font-size: 13px;
-        }}
-        .stTabs [aria-selected="true"] {{
-            background-color: {TINT} !important; color: {NAVY} !important; font-weight: 600;
-        }}
-
-        div[data-testid="stDataFrame"] {{ border: 1px solid {BORDER}; border-radius: 6px; }}
-
-        .st-key-kb_hidden {{
-            position: fixed !important; top: -9999px !important; left: -9999px !important;
-            height: 1px !important; width: 1px !important; overflow: hidden !important;
-        }}
-
-        @media (max-width: 768px) {{
-            #custom-sidebar {{
-                box-shadow: 4px 0 20px rgba(0,0,0,0.12);
-            }}
-            #custom-sidebar.collapsed {{
-                transform: translateX(-100%);
-            }}
-            #main-content-area {{
-                margin-left: 0 !important;
-                padding: 12px;
-            }}
-            .main .block-container {{
-                margin-left: 0 !important;
-            }}
-        }}
-
-        /* Bottom bar */
-        .bottom-bar {{
-            position: fixed; bottom: 0; left: {SIDEBAR_WIDTH if is_open else 0}px;
-            right: 0;
-            background: {WHITE}; border-top: 1px solid {BORDER};
-            padding: 0; z-index: 9999;
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 -2px 12px rgba(0,0,0,0.04);
-            transition: left 300ms cubic-bezier(0.4, 0, 0.2, 1);
-        }}
-
-        .bottom-bar-inner {{
-            display: flex; align-items: center; gap: 0;
-            max-width: 600px; width: 100%;
-        }}
-
-        .nav-btn {{
-            background: none; border: none; color: {BLUE}; font-weight: 600; font-size: 13px;
-            padding: 14px 24px; cursor: pointer; letter-spacing: 0.3px;
-            border-right: 1px solid {BORDER}; flex: 1; text-align: center;
-            transition: background 0.15s;
-        }}
-        .nav-btn:hover {{ background: {TINT}; }}
-        .nav-btn:disabled {{ color: {LTGRAY}; cursor: not-allowed; background: none; }}
-
-        .nav-center {{
-            padding: 10px 32px; text-align: center; flex: 2;
-            border-right: 1px solid {BORDER};
-        }}
-        .nav-center-top {{ font-size: 12px; color: {MUTED}; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }}
-        .nav-center-bot {{ font-size: 14px; color: {NAVY}; font-weight: 700; margin-top: 2px; }}
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    html, body, [class*="css"], .stApp, .stMarkdown, .stDataFrame, .stButton,
+    .stSelectbox, .stTextInput, .stNumberInput, .stTabs {{
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    }}
+    #MainMenu {{ visibility: hidden; }}
+    footer {{ visibility: hidden; }}
+    header[data-testid="stHeader"] {{ background: transparent; }}
+    .block-container {{ padding-top: 0.5rem; padding-bottom: 2rem; max-width: 1400px; }}
+    .stApp {{ background-color: {BG}; }}
+    section[data-testid="stSidebar"] {{
+        background-color: {WHITE}; border-right: 1px solid {BORDER};
+        min-width: 260px !important; max-width: 260px !important;
+    }}
+    section[data-testid="stSidebar"] .block-container {{ padding: 16px; }}
+    h1 {{ color: {NAVY} !important; font-weight: 700 !important; font-size: 22px !important; }}
+    h2 {{ color: {NAVY} !important; font-weight: 600 !important; font-size: 16px !important; margin-top: 0.2rem !important; }}
+    h3 {{ color: {NAVY} !important; font-weight: 600 !important; font-size: 14px !important;
+         border-left: 3px solid {BLUE}; padding-left: 10px; margin-top: 0.3rem !important; }}
+    .stTabs [data-baseweb="tab-list"] {{ gap: 2px; border-bottom: 1px solid {BORDER}; }}
+    .stTabs [data-baseweb="tab"] {{
+        background-color: transparent; border-radius: 6px 6px 0 0;
+        padding: 8px 16px; color: {MUTED}; font-weight: 500; font-size: 13px;
+    }}
+    .stTabs [aria-selected="true"] {{
+        background-color: {TINT} !important; color: {NAVY} !important; font-weight: 600;
+    }}
+    div[data-testid="stDataFrame"] {{ border: 1px solid {BORDER}; border-radius: 6px; }}
+    section[data-testid="stSidebar"] {{ position: sticky; top: 0; height: 100vh; overflow-y: auto; }}
+    .bottom-bar {{
+        position: fixed; bottom: 0; left: 260px; right: 0;
+        background: {WHITE}; border-top: 1px solid {BORDER};
+        padding: 0; z-index: 9999;
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 -2px 12px rgba(0,0,0,0.04);
+    }}
+    .bottom-bar-inner {{
+        display: flex; align-items: center; gap: 0;
+        max-width: 600px; width: 100%;
+    }}
+    .nav-btn {{
+        background: none; border: none; color: {BLUE}; font-weight: 600; font-size: 13px;
+        padding: 14px 24px; cursor: pointer; letter-spacing: 0.3px;
+        border-right: 1px solid {BORDER}; flex: 1; text-align: center;
+        transition: background 0.15s;
+    }}
+    .nav-btn:hover {{ background: {TINT}; }}
+    .nav-btn:disabled {{ color: {LTGRAY}; cursor: not-allowed; background: none; }}
+    .nav-center {{
+        padding: 10px 32px; text-align: center; flex: 2;
+        border-right: 1px solid {BORDER};
+    }}
+    .nav-center-top {{ font-size: 12px; color: {MUTED}; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }}
+    .nav-center-bot {{ font-size: 14px; color: {NAVY}; font-weight: 700; margin-top: 2px; }}
+    .st-key-kb_hidden {{
+        position: fixed !important; top: -9999px !important; left: -9999px !important;
+        height: 1px !important; width: 1px !important; overflow: hidden !important;
+    }}
+    /* --- Encabezados desplegables del sidebar --- */
+    section[data-testid="stSidebar"] button[kind="secondary"][class*="st-key-btn_sec_"],
+    section[data-testid="stSidebar"] .st-key-btn_sec_contexto button,
+    section[data-testid="stSidebar"] .st-key-btn_sec_orden button,
+    section[data-testid="stSidebar"] .st-key-btn_sec_exogenas button {{
+        background: none !important; border: none !important; box-shadow: none !important;
+        padding: 4px 0 !important; text-align: left !important; justify-content: flex-start !important;
+        font-size: 13px !important; font-weight: 700 !important; color: {NAVY} !important;
+        text-transform: uppercase; letter-spacing: 0.5px;
+    }}
+    section[data-testid="stSidebar"] .st-key-btn_sec_contexto button:hover,
+    section[data-testid="stSidebar"] .st-key-btn_sec_orden button:hover,
+    section[data-testid="stSidebar"] .st-key-btn_sec_exogenas button:hover {{
+        color: {BLUE} !important;
+    }}
     </style>
     """, unsafe_allow_html=True)
 
-def inject_collapsible_sidebar_html():
-    is_open = st.session_state.get('sidebar_open', True)
-    arrow_class = "open" if is_open else "closed"
-    sidebar_class = "" if is_open else "collapsed"
-
-    layout_html = f"""
-    <div id="custom-layout-wrapper">
-        <div id="custom-sidebar" class="{sidebar_class}">
-            <div id="sidebar-inner"></div>
-            <button id="sidebar-toggle-btn" onclick="toggleCustomSidebar()">
-                <div class="toggle-arrow {arrow_class}"></div>
-            </button>
-        </div>
-    </div>
-
-    <script>
-        function toggleCustomSidebar() {{
-            const sidebar = document.getElementById('custom-sidebar');
-            const arrow = document.querySelector('.toggle-arrow');
-            const mainContainer = document.querySelector('.main .block-container');
-            const bottomBar = document.querySelector('.bottom-bar');
-
-            const isOpen = !sidebar.classList.contains('collapsed');
-            const newState = !isOpen;
-
-            if (newState) {{
-                sidebar.classList.remove('collapsed');
-                sidebar.style.transform = 'translateX(0)';
-                sidebar.style.width = '{SIDEBAR_WIDTH}px';
-                sidebar.style.minWidth = '{SIDEBAR_WIDTH}px';
-                arrow.classList.remove('closed');
-                arrow.classList.add('open');
-                if (mainContainer) mainContainer.style.marginLeft = '{SIDEBAR_WIDTH}px';
-                if (bottomBar) bottomBar.style.left = '{SIDEBAR_WIDTH}px';
-            }} else {{
-                sidebar.classList.add('collapsed');
-                sidebar.style.transform = 'translateX(-{SIDEBAR_WIDTH}px)';
-                sidebar.style.width = '0';
-                sidebar.style.minWidth = '0';
-                arrow.classList.remove('open');
-                arrow.classList.add('closed');
-                if (mainContainer) mainContainer.style.marginLeft = '0';
-                if (bottomBar) bottomBar.style.left = '0';
-            }}
-
-            window.parent.postMessage({{
-                type: 'streamlit:setComponentValue',
-                value: newState
-            }}, '*');
-        }}
-
-        (function() {{
-            const sidebar = document.getElementById('custom-sidebar');
-            const mainContainer = document.querySelector('.main .block-container');
-            const bottomBar = document.querySelector('.bottom-bar');
-            const isOpen = {'true' if is_open else 'false'};
-            if (!isOpen) {{
-                if (mainContainer) mainContainer.style.marginLeft = '0';
-                if (bottomBar) bottomBar.style.left = '0';
-            }}
-        }})();
-    </script>
-    """
-    components.html(layout_html, height=0, scrolling=False)
-
-# =============================================================================
-# UTILIDADES (originales)
-# =============================================================================
 def pill(text, color_bg, color_fg):
     return f'<span style="background:{color_bg};color:{color_fg};font-size:11px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;">{text}</span>'
 
@@ -394,15 +201,16 @@ def section_title(text):
     return f"<p style='font-size:13px;font-weight:700;color:{NAVY};margin:0 0 12px;text-transform:uppercase;letter-spacing:0.5px;'>{text}</p>"
 
 # =============================================================================
-# PREFERENCIAS DEL SIDEBAR
+# PREFERENCIAS DEL SIDEBAR (persistentes entre sesiones)
 # =============================================================================
 PREFS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".sidebar_prefs.json")
 
+# Claves de session_state que se guardan/restauran en disco
 CLAVES_PREFS_SIDEBAR = [
-    "sec_contexto", "sec_orden", "sec_exogenas",
+    "sec_contexto", "sec_orden", "sec_exogenas",       # estado desplegado/colapsado
     "criterio_ordenamiento",
     "filtro_ljung", "filtro_jarque", "filtro_hetero",
-    "filtro_favoritos", "nav_sticky", "sidebar_open",
+    "filtro_favoritos", "nav_sticky",
 ]
 
 def cargar_prefs_sidebar():
@@ -421,6 +229,9 @@ def guardar_prefs_sidebar():
         pass
 
 def encabezado_colapsable(titulo, key):
+    """Renderiza un encabezado de seccion tipo acordeon para el sidebar.
+    El estado (abierto/cerrado) se guarda en session_state y se persiste
+    en disco (.sidebar_prefs.json) para recordarse entre sesiones."""
     if key not in st.session_state:
         st.session_state[key] = True
     abierto = st.session_state[key]
@@ -679,7 +490,7 @@ def resumen_fwl(fwl_df):
     return {'promedio': vals.mean(), 'maximo': vals.max(), 'minimo': vals.min(), 'volatilidad': vals.std()}
 
 # =============================================================================
-# SCORE SYSTEM
+# SCORE SYSTEM (A-D Grading)
 # =============================================================================
 def calcular_score(p_val, prueba_nombre=""):
     if p_val is None or pd.isna(p_val):
@@ -731,6 +542,8 @@ def obtener_scores_modelo(pruebas_df):
     return scores
 
 def calcular_score_global(pruebas_df):
+    """Score agregado 0-10: Ljung-Box 40%, Jarque-Bera 30%, Heterocedasticidad 30%.
+    Los diagnosticos sin dato (N/A) se excluyen y el peso se renormaliza."""
     scores = obtener_scores_modelo(pruebas_df)
     acumulado, peso_total = 0.0, 0.0
     detalle = {}
@@ -1063,6 +876,7 @@ def alternar_favorito(nombre):
         st.session_state.favoritos.add(nombre)
 
 def boton_favorito(nombre, key_suffix=""):
+    """Renderiza un boton tipo estrella para marcar/desmarcar un modelo como favorito."""
     activo = es_favorito(nombre)
     label = "★ Favorito" if activo else "☆ Marcar favorito"
     if st.button(label, key=f"fav_{key_suffix}_{nombre}", use_container_width=True):
@@ -1228,9 +1042,9 @@ def render_resumen_ejecutivo():
     with c1:
         st.markdown(card_kpi("Total de modelos", str(total)), unsafe_allow_html=True)
     with c2:
-        st.markdown(card_kpi("Buenos (score >= 7)", str(buenos), accent=GREEN), unsafe_allow_html=True)
+        st.markdown(card_kpi("Buenos (score ≥ 7)", str(buenos), accent=GREEN), unsafe_allow_html=True)
     with c3:
-        st.markdown(card_kpi("Regulares (5 - 7)", str(regulares), accent="#B8860B"), unsafe_allow_html=True)
+        st.markdown(card_kpi("Regulares (5 – 7)", str(regulares), accent="#B8860B"), unsafe_allow_html=True)
     with c4:
         st.markdown(card_kpi("Deficientes (< 5)", str(deficientes), accent=RED), unsafe_allow_html=True)
     st.markdown(divider(), unsafe_allow_html=True)
@@ -1278,7 +1092,7 @@ def render_vista_favoritos():
     """, unsafe_allow_html=True)
     bcol1, bcol2 = st.columns([1, 5])
     with bcol1:
-        if st.button("<- Volver", key="btn_volver_de_favoritos", use_container_width=True):
+        if st.button("← Volver", key="btn_volver_de_favoritos", use_container_width=True):
             st.session_state.vista_favoritos = False
             st.session_state.vista_resumen = True
             st.rerun()
@@ -1346,6 +1160,7 @@ def render_seccion_coeficientes(datos, key_prefix="diag"):
         else:
             styler = styler.applymap(color_pval, subset=['P-valor'])
         st.dataframe(styler, use_container_width=True, hide_index=True, key=f"{key_prefix}_coef_tabla")
+        # --- Conteo de AR y MA ---
         ar_count, ma_count = contar_ar_ma(coefs)
         st.markdown(divider(), unsafe_allow_html=True)
         st.markdown(section_title("Estructura del modelo"), unsafe_allow_html=True)
@@ -1378,7 +1193,6 @@ for key, default in [
     ("sec_contexto", _prefs_guardadas.get("sec_contexto", True)),
     ("sec_orden", _prefs_guardadas.get("sec_orden", True)),
     ("sec_exogenas", _prefs_guardadas.get("sec_exogenas", True)),
-    ("sidebar_open", _prefs_guardadas.get("sidebar_open", True)),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -1387,12 +1201,10 @@ for key, default in [
 # APP
 # =============================================================================
 st.set_page_config(page_title="Dashboard SARIMAX", layout="wide")
-
-# Inyectar CSS de la sidebar colapsable
-inject_collapsible_sidebar_css()
+inject_css()
 
 # =========================================================================
-# ATAJOS DE TECLADO
+# ATAJOS DE TECLADO (flechas para navegar, Escape para limpiar filtros)
 # =========================================================================
 with st.container(key="kb_hidden"):
     kb_c1, kb_c2, kb_c3 = st.columns(3)
@@ -1453,15 +1265,17 @@ _KB_SHORTCUT_HTML = """
 })();
 </script>
 """
-components.html(_KB_SHORTCUT_HTML, height=0, width=0)
+if hasattr(st, "iframe"):
+    st.iframe(_KB_SHORTCUT_HTML, height=1, width=1)
+else:
+    components.html(_KB_SHORTCUT_HTML, height=0, width=0)
 
-# Inyectar HTML de la sidebar colapsable
-inject_collapsible_sidebar_html()
+col_left, col_right = st.columns([1, 4])
 
 # =========================================================================
-# SIDEBAR (renderizado en el contenedor de Streamlit)
+# SIDEBAR
 # =========================================================================
-with st.container():
+with col_left:
     st.markdown(f"<p style='font-size:12px;font-weight:700;color:{NAVY};margin:0 0 10px;letter-spacing:0.5px;'>CARGAR MODELO</p>", unsafe_allow_html=True)
     uploaded = st.file_uploader("Archivo Excel (.xlsx)", type=["xlsx"], label_visibility="collapsed")
     if uploaded is not None:
@@ -1516,6 +1330,7 @@ with st.container():
             else:
                 st.caption("Sin metadata embebida.")
         st.markdown(divider(), unsafe_allow_html=True)
+        # --- ORDENAR Y FILTROS DE DIAGNOSTICO (colapsable) ---
         if encabezado_colapsable("Ordenar y Filtrar", "sec_orden"):
             criterio = st.radio("Ordenar por:", ["Nombre (A-Z)", "Pruebas aprobadas ↓", "Pruebas aprobadas ↑",
                                                   "Score global ↓", "Score global ↑"],
@@ -1562,6 +1377,7 @@ with st.container():
         st.markdown(divider(), unsafe_allow_html=True)
         st.toggle("Fijar flechas de navegacion", key="nav_sticky",
                   help="Mantiene los botones Anterior/Siguiente siempre visibles, flotando sobre la pagina al hacer scroll.")
+        # Persiste en disco cualquier cambio de orden/filtros/nav_sticky de este rerun.
         guardar_prefs_sidebar()
         if st.session_state.modelo_seleccionado:
             datos = st.session_state.modelos_data.get(st.session_state.modelo_seleccionado, {})
@@ -1587,7 +1403,7 @@ with st.container():
 # =========================================================================
 # PANEL PRINCIPAL
 # =========================================================================
-with st.container():
+with col_right:
     if not st.session_state.modelos_data:
         st.markdown(f"""
         <div style="background:{WHITE};border:1px solid {BORDER};border-radius:10px;padding:60px 32px;text-align:center;margin-top:40px;">
@@ -1865,7 +1681,7 @@ with st.container():
         with st.container(key="nav_flechas"):
             nav_cols = st.columns([1, 2, 1])
             with nav_cols[0]:
-                if st.button("<-          ", disabled=current_idx == 0, key="btn_prev_real", use_container_width=True):
+                if st.button("←          ", disabled=current_idx == 0, key="btn_prev_real", use_container_width=True):
                     st.session_state.pending_modelo = modelos_list[current_idx - 1]
                     st.rerun()
             with nav_cols[1]:
@@ -1879,6 +1695,6 @@ with st.container():
                     unsafe_allow_html=True
                 )
             with nav_cols[2]:
-                if st.button("->          ", disabled=current_idx == len(modelos_list) - 1, key="btn_next_real", use_container_width=True):
+                if st.button("→          ", disabled=current_idx == len(modelos_list) - 1, key="btn_next_real", use_container_width=True):
                     st.session_state.pending_modelo = modelos_list[current_idx + 1]
                     st.rerun()
